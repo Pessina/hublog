@@ -12,13 +12,21 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "sst": "^2.30.3",
+    "@tsconfig/node18": "^18.2.2",
+    "@types/jsdom": "^21.1.4",
     "aws-cdk-lib": "2.95.1",
     "constructs": "10.2.69",
-    "typescript": "^5.2.2",
-    "@tsconfig/node18": "^18.2.2"
+    "sst": "^2.30.3",
+    "typescript": "^5.2.2"
   },
   "workspaces": [
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "@mozilla/readability": "^0.4.4",
+    "@sparticuz/chromium": "^117.0.0",
+    "cheerio": "^1.0.0-rc.12",
+    "jsdom": "^22.1.0",
+    "puppeteer-core": "^21.4.0"
+  }
 }

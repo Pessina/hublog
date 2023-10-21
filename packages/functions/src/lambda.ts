@@ -3,6 +3,7 @@ import { cleanHTML, fetchPageContent } from "@hublog/core/src/scraping";
 import { translateHTML } from "@hublog/core/src/translation";
 import { EventHandler } from "sst/node/event-bus";
 import * as Todo from "@hublog/core/src/translation";
+import { SES } from "aws-sdk";
 
 export const scrapingHandler = ApiHandler(async (evt) => {
   const url = JSON.parse(evt.body ?? "").url;
@@ -22,6 +23,27 @@ export const translationHandler = EventHandler(
   async (evt) => {
     const html = evt.properties.html;
     const translatedHTML = await translateHTML(html);
-    console.log({ translatedHTML });
+
+    const ses = new SES({ region: "us-east-1" });
+
+    const params = {
+      Destination: {
+        ToAddresses: ["fs.pessina@gmail.com"],
+      },
+      Message: {
+        Body: {
+          Text: { Data: translatedHTML },
+        },
+        Subject: { Data: "Translated HTML" },
+      },
+      Source: "fs.pessina@gmail.com",
+    };
+
+    try {
+      const data = await ses.sendEmail(params).promise();
+      console.log(data);
+    } catch (error) {
+      console.log(error);
+    }
   }
 );

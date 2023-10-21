@@ -25,6 +25,8 @@ export function ScrapingStack({ stack }: StackContext) {
     timeout: "60 seconds",
   });
 
+  bus.attachPermissions(["ses:SendEmail"]);
+
   stack.addOutputs({
     ApiEndpoint: api.url,
   });

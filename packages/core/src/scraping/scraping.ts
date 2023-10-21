@@ -1,6 +1,25 @@
 import axios from "axios";
 import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
+import { event } from "../events/events";
+import { z } from "zod";
+import crypto from "crypto";
+
+export const Events = {
+  Created: event("scrap.created", {
+    id: z.string(),
+    scrap: z.string(),
+  }),
+};
+
+export async function create(scrap: string) {
+  const id = crypto.randomUUID();
+
+  await Events.Created.publish({
+    id,
+    scrap,
+  });
+}
 
 export async function fetchPageContent(url: string): Promise<string> {
   try {

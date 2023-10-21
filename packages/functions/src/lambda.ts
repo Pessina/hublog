@@ -1,27 +1,32 @@
 import { ApiHandler } from "sst/node/api";
-import { cleanHTML, fetchPageContent } from "@hublog/core/src/scraping";
+
 import { translateHTML } from "@hublog/core/src/translation";
 import { EventHandler } from "sst/node/event-bus";
-import * as Todo from "@hublog/core/src/translation";
+import * as Url from "@hublog/core/src/url";
+import * as Scrap from "@hublog/core/src/scraping";
 import { SES } from "aws-sdk";
 
-export const scrapingHandler = ApiHandler(async (evt) => {
+export const urlHandler = ApiHandler(async (evt) => {
   const url = JSON.parse(evt.body ?? "").url;
 
-  const rawContent = await fetchPageContent(url);
-  const cleanContent = cleanHTML(rawContent);
-
-  await Todo.create(cleanContent);
+  await Url.create(url);
 
   return {
     statusCode: 200,
   };
 });
 
+export const scrapingHandler = EventHandler(Url.Events.Created, async (evt) => {
+  const url = evt.properties.url;
+  const rawHTML = await Scrap.fetchPageContent(url);
+  const cleanHTML = Scrap.cleanHTML(rawHTML);
+  await Scrap.create(cleanHTML);
+});
+
 export const translationHandler = EventHandler(
-  Todo.Events.Created,
+  Scrap.Events.Created,
   async (evt) => {
-    const html = evt.properties.html;
+    const html = evt.properties.scrap;
     const translatedHTML = await translateHTML(html);
 
     const ses = new SES({ region: "us-east-1" });

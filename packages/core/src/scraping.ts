@@ -1,38 +1,18 @@
-// @ts-nocheck
-import puppeteer from "puppeteer-core";
-import chromium from "@sparticuz/chromium";
-
-const CHROMIUM_PATH =
-  "/tmp/localChromium/chromium/mac_arm-1212771/chrome-mac/Chromium.app/Contents/MacOS/Chromium";
+import { parseHTML } from "linkedom";
+import { Readability } from "@mozilla/readability";
 
 export async function fetchPageContent(url: string): Promise<string> {
   try {
-    const browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: process.env.IS_LOCAL
-        ? CHROMIUM_PATH
-        : await chromium.executablePath(),
-      headless: chromium.headless,
-    });
+    const response = await fetch(url);
+    const html = await response.text();
+    const { window } = parseHTML(html);
+    const document = window.document;
 
-    let page = await browser.newPage();
-    await page.goto(url);
+    const reader = new Readability(document);
+    const article = reader.parse();
 
-    // Inject Readability script into the page
-    await page.addScriptTag({
-      url: "https://cdn.jsdelivr.net/npm/moz-readability@0.2.1/Readability.min.js",
-    });
-
-    const content = await page.evaluate(() => {
-      const documentClone = document.cloneNode(true) as Document;
-      const reader = new Readability(documentClone);
-      const article = reader.parse();
-      return article ? article.content : null;
-    });
-
-    if (content) {
-      return content;
+    if (article && article.content) {
+      return article.content;
     } else {
       throw new Error(`Could not fetch main content from ${url}`);
     }

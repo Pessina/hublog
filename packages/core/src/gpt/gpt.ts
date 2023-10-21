@@ -39,8 +39,8 @@ export class ChatGptService {
       ...(schema ? { functions: [{ name: "res", parameters: schema }] } : {}),
     };
 
-    const response = await axios.post(this.baseURL, data, { headers });
-    const messageContent = response.data.choices[0].message;
+    let response = await axios.post(this.baseURL, data, { headers });
+    const messageContent = response?.data.choices[0].message;
 
     let retMessage;
     if (schema) {
@@ -55,22 +55,6 @@ export class ChatGptService {
   async runGPTPipeline(prompts: Prompt[]): Promise<GptPipelineResponse> {
     const responses: { [key: string]: string } = {};
     const result: string[] = [];
-
-    for (const prompt of prompts) {
-      let content = prompt.content;
-
-      for (const id in responses) {
-        content = content.replace("{" + id + "}", responses[id]);
-      }
-
-      const messages: Message[] = [{ role: prompt.role, content: content }];
-      const schema = prompt.schema;
-
-      const response = await this.gpt(prompt.model, messages, schema);
-
-      responses[prompt.id] = response.message;
-      result.push(response.message);
-    }
 
     return { messages: result };
   }

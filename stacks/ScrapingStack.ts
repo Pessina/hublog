@@ -1,12 +1,12 @@
 import { StackContext, Api, Function, Config } from "sst/constructs";
 
 export function ScrapingStack({ stack }: StackContext) {
+  const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
+
   const scrapingFunction = new Function(stack, "ScrapingFunction", {
-    handler: "packages/functions/src/scraping.handler",
+    handler: "packages/functions/src/lambda.scrapingHandler",
     timeout: 15,
   });
-
-  const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
 
   const api = new Api(stack, "api", {
     defaults: {
@@ -15,7 +15,7 @@ export function ScrapingStack({ stack }: StackContext) {
       },
     },
     routes: {
-      "POST /scrape": "packages/functions/src/scraping.handler",
+      "POST /scrape": "packages/functions/src/lambda.scrapingHandler",
     },
   });
 

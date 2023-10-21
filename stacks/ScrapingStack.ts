@@ -1,22 +1,28 @@
-import { StackContext, Api, Function, Config } from "sst/constructs";
+import { StackContext, Api, Function, Config, EventBus } from "sst/constructs";
 
 export function ScrapingStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
-
-  const scrapingFunction = new Function(stack, "ScrapingFunction", {
-    handler: "packages/functions/src/lambda.scrapingHandler",
-    timeout: 15,
-  });
+  const bus = new EventBus(stack, "bus");
 
   const api = new Api(stack, "api", {
     defaults: {
       function: {
-        bind: [scrapingFunction, OPEN_AI_KEY],
+        bind: [bus],
       },
     },
     routes: {
-      "POST /scrape": "packages/functions/src/lambda.scrapingHandler",
+      "POST /scrape": {
+        function: {
+          handler: "packages/functions/src/lambda.scrapingHandler",
+        },
+      },
     },
+  });
+
+  bus.subscribe("todo.created", {
+    bind: [OPEN_AI_KEY],
+    handler: "packages/functions/src/lambda.translationHandler",
+    timeout: "60 seconds",
   });
 
   stack.addOutputs({

@@ -2,16 +2,22 @@
 
 import { Prompt } from "./prompt.types";
 
-const extractMainContentAsHTML = (rawHTML: string): Prompt[] => [
+const extractMainContentAsHTML = (
+  rawHTML: string,
+  targetLanguage: string
+): Prompt[] => [
   {
     id: "mainContent",
     model: "gpt-3.5-turbo-16k",
     role: "user",
     content: `
-    GIVEN:
-      - Raw HTML: '''${rawHTML}'''
+    - HTML: '''${rawHTML}'''
+    - Target Language: '''${targetLanguage}'''
 
-    Summarize the content of the article
+    Translate the HTML content within to the target language. 
+
+    NOTE: 
+      - Your answer should be the translated HTML content. Nothing else
 `,
   },
 ];

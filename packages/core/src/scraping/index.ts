@@ -1,1 +1,1 @@
-export * from "./scraping";
+export * as Scrap from "./scraping";

@@ -1,15 +1,17 @@
 import { ApiHandler } from "sst/node/api";
 
-import { translateHTML } from "@hublog/core/src/translation";
+import { Translation } from "@hublog/core/src/translation";
 import { EventHandler } from "sst/node/event-bus";
-import * as Url from "@hublog/core/src/url";
-import * as Scrap from "@hublog/core/src/scraping";
+import { Url } from "@hublog/core/src/url";
+import { Scrap } from "@hublog/core/src/scraping";
 import { SES } from "aws-sdk";
 
 export const urlHandler = ApiHandler(async (evt) => {
-  const url = JSON.parse(evt.body ?? "").url;
+  const url = new URL(JSON.parse(evt.body ?? "").url);
+  const domain = url.hostname;
 
-  await Url.create(url);
+  const urlList = await Scrap.checkRobotsAndSitemap(domain);
+  await Promise.all(urlList.slice(0, 3).map(async (u) => Url.create(u)));
 
   return {
     statusCode: 200,
@@ -27,7 +29,7 @@ export const translationHandler = EventHandler(
   Scrap.Events.Created,
   async (evt) => {
     const html = evt.properties.scrap;
-    const translatedHTML = await translateHTML(html);
+    const translatedHTML = await Translation.translateHTML(html);
 
     const ses = new SES({ region: "us-east-1" });
 

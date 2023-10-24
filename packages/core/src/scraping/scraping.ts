@@ -4,6 +4,7 @@ import { Readability } from "@mozilla/readability";
 import { event } from "../events/events";
 import { z } from "zod";
 import crypto from "crypto";
+import xml2js from "xml2js";
 
 export const Events = {
   Created: event("scrap.created", {
@@ -19,6 +20,60 @@ export async function create(scrap: string) {
     id,
     scrap,
   });
+}
+
+async function getRobotsTxt(domain: string): Promise<string> {
+  try {
+    const { data: robotsTxt } = await axios.get(`https://${domain}/robots.txt`);
+    return robotsTxt;
+  } catch (error) {
+    console.error(`Error fetching robots.txt: ${error}`);
+    throw error;
+  }
+}
+
+async function getSitemap(domain: string): Promise<string[]> {
+  const urls: string[] = [];
+  const stack: string[] = [`https://${domain}/sitemap.xml`];
+  const sitemapRegex = /https?:\/\/.*\/.*sitemap.*\.xml$/i;
+
+  while (stack.length > 0) {
+    const currentUrl = stack.pop()!;
+    try {
+      const { data: sitemapXml } = await axios.get(currentUrl);
+      const parser = new xml2js.Parser();
+      const sitemap = await parser.parseStringPromise(sitemapXml);
+      let urlList: string[] = [];
+      if (sitemap.urlset) {
+        urlList = sitemap.urlset.url.map((u: any) => u.loc[0]);
+      } else if (sitemap.sitemapindex) {
+        urlList = sitemap.sitemapindex.sitemap.map((u: any) => u.loc[0]);
+      }
+
+      for (const url of urlList) {
+        if (sitemapRegex.test(url)) {
+          stack.push(url);
+        } else {
+          urls.push(url);
+        }
+      }
+    } catch (error) {
+      console.error(`Error fetching sitemap: ${error}`);
+      throw error;
+    }
+  }
+  return urls;
+}
+
+export async function checkRobotsAndSitemap(domain: string): Promise<string[]> {
+  const robotsTxt = await getRobotsTxt(domain);
+  const isAllowed = !robotsTxt.includes(`User-agent: *\nDisallow: /`);
+  if (isAllowed) {
+    const sitemap = await getSitemap(domain);
+    return sitemap;
+  } else {
+    throw new Error(`User-agent * is disallowed from ${domain}`);
+  }
 }
 
 export async function fetchPageContent(url: string): Promise<string> {

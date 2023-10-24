@@ -1,1 +1,1 @@
-export * from "./url";
+export * as Url from "./url";

@@ -2,6 +2,7 @@ import { StackContext, Api, Config, EventBus } from "sst/constructs";
 
 export function ScrapingStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
+  const WORDPRESS_API_KEY = new Config.Secret(stack, "WORDPRESS_API_KEY");
   const bus = new EventBus(stack, "bus", {
     defaults: {
       retries: 0,
@@ -20,14 +21,15 @@ export function ScrapingStack({ stack }: StackContext) {
           handler: "packages/functions/src/lambda.sitemapUrlHandler",
         },
       },
-      "POST /scrap/url-single": {
-        function: {
-          handler: "packages/functions/src/lambda.singleUrlHandler",
-        },
-      },
       "POST /scrap/url-list": {
         function: {
           handler: "packages/functions/src/lambda.urlListHandler",
+        },
+      },
+      "POST /wordpress/post": {
+        function: {
+          handler: "packages/functions/src/lambda.addWordpressPostsHandler",
+          bind: [WORDPRESS_API_KEY],
         },
       },
     },

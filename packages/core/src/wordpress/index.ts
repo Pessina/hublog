@@ -1,0 +1,1 @@
+export { WordPress } from "./wordpress";

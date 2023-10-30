@@ -4,7 +4,8 @@ import { Translation } from "@hublog/core/src/translation";
 import { EventHandler } from "sst/node/event-bus";
 import { Url } from "@hublog/core/src/url";
 import { Scrap } from "@hublog/core/src/scraping";
-import { SES } from "aws-sdk";
+import { WordPress } from "@hublog/core/src/wordpress";
+import { Config } from "sst/node/config";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   const evtJSON = JSON.parse(evt.body ?? "");
@@ -15,23 +16,6 @@ export const sitemapUrlHandler = ApiHandler(async (evt) => {
   await Promise.all(
     urlList.slice(0, 5).map(async (u) => Url.create(u, evtJSON.language))
   );
-
-  return {
-    statusCode: 200,
-  };
-});
-
-export const singleUrlHandler = ApiHandler(async (evt) => {
-  const evtJSON = JSON.parse(evt.body ?? "");
-  try {
-    const url = new URL(evtJSON.url);
-    Url.create(url.href, evtJSON.language);
-  } catch (error) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ message: "Invalid URL format" }),
-    };
-  }
 
   return {
     statusCode: 200,
@@ -80,32 +64,31 @@ export const scrapingHandler = EventHandler(Url.Events.Created, async (evt) => {
 export const translationHandler = EventHandler(
   Scrap.Events.Created,
   async (evt) => {
+    const wordpress = new WordPress(
+      "fs.pessina@gmail.com",
+      Config.WORDPRESS_API_KEY,
+      "blogify.net"
+    );
     const html = evt.properties.scrap;
     const translatedHTML = await Translation.translateHTML(
       html,
       evt.properties.language
     );
-
-    const ses = new SES({ region: "us-east-1" });
-
-    const params = {
-      Destination: {
-        ToAddresses: ["fs.pessina@gmail.com"],
-      },
-      Message: {
-        Body: {
-          Text: { Data: translatedHTML },
-        },
-        Subject: { Data: "Translated HTML" },
-      },
-      Source: "fs.pessina@gmail.com",
-    };
-
-    try {
-      const data = await ses.sendEmail(params).promise();
-      console.log(data);
-    } catch (error) {
-      console.log(error);
-    }
   }
 );
+
+export const addWordpressPostsHandler = ApiHandler(async (evt) => {
+  const wordpress = new WordPress(
+    "fs.pessina@gmail.com",
+    "ZB3o htNT rd9m cgtF RYFM oL58",
+    "blogify.net"
+  );
+  const evtJSON = JSON.parse(evt.body ?? "");
+  const postData = {
+    title: evtJSON.title,
+    content: evtJSON.content,
+    status: "publish",
+  };
+  const res = await wordpress.setPost(postData);
+  return res;
+});

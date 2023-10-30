@@ -10,37 +10,43 @@ export const Events = {
   Created: event("scrap.created", {
     id: z.string(),
     scrap: z.string(),
+    language: z.string(),
   }),
 };
 
-export async function create(scrap: string) {
+export async function create(scrap: string, language: string) {
   const id = crypto.randomUUID();
 
   await Events.Created.publish({
     id,
     scrap,
+    language,
   });
+}
+
+async function fetchSitemap(url: string): Promise<string[]> {
+  const parser = new xml2js.Parser();
+  const { data: sitemapXml } = await axios.get(url);
+  const sitemap = await parser.parseStringPromise(sitemapXml);
+  return (
+    sitemap.urlset?.url.map((u: { loc: string[] }) => u.loc[0]) ||
+    sitemap.sitemapindex?.sitemap.map((u: { loc: string[] }) => u.loc[0]) ||
+    []
+  );
 }
 
 async function getSitemap(domain: string): Promise<string[]> {
   const urls: string[] = [];
+  const stack: string[] = [];
   const sitemapUrls = [
     `https://${domain}/sitemap_index.xml`,
     `https://${domain}/sitemap.xml`,
   ];
   const sitemapRegex = /https?:\/\/.*\/.*sitemap.*\.xml$/i;
-  const parser = new xml2js.Parser();
-  const stack: string[] = [];
 
   for (const sitemapUrl of sitemapUrls) {
     try {
-      const { data: sitemapXml } = await axios.get(sitemapUrl);
-      const sitemap = await parser.parseStringPromise(sitemapXml);
-      const urlList: string[] =
-        sitemap.urlset?.url.map((u: { loc: string[] }) => u.loc[0]) ||
-        sitemap.sitemapindex?.sitemap.map((u: { loc: string[] }) => u.loc[0]) ||
-        [];
-
+      const urlList = await fetchSitemap(sitemapUrl);
       urlList.forEach((url: string) =>
         sitemapRegex.test(url) ? stack.push(url) : urls.push(url)
       );
@@ -53,13 +59,7 @@ async function getSitemap(domain: string): Promise<string[]> {
   while (stack.length > 0) {
     const currentUrl = stack.pop()!;
     try {
-      const { data: sitemapXml } = await axios.get(currentUrl);
-      const sitemap = await parser.parseStringPromise(sitemapXml);
-      const urlList: string[] =
-        sitemap.urlset?.url.map((u: { loc: string[] }) => u.loc[0]) ||
-        sitemap.sitemapindex?.sitemap.map((u: { loc: string[] }) => u.loc[0]) ||
-        [];
-
+      const urlList = await fetchSitemap(currentUrl);
       urlList.forEach((url: string) =>
         sitemapRegex.test(url) ? stack.push(url) : urls.push(url)
       );
@@ -79,7 +79,6 @@ export async function fetchPageContent(url: string): Promise<string> {
     const { data: html } = await axios.get(url);
     const { window } = parseHTML(html);
     const document = window.document;
-    // TODO: Sanitize HTML for security reasons before passing to Readability
     const reader = new Readability(document);
     const article = reader.parse();
 
@@ -97,9 +96,10 @@ export async function fetchPageContent(url: string): Promise<string> {
 export function cleanHTML(html: string): string {
   try {
     html = html.replace(/<a[^>]*>([^<]+)<\/a>/g, "$1");
-    html = html.replace(/<img[^>]*>/g, "");
     html = html.replace(/<svg[^>]*>.*?<\/svg>/gs, "");
     html = html.replace(/\s\s+/g, " ").trim();
+    // TODO: Handle images properly instead of clean them
+    html = html.replace(/<img[^>]*>/g, "");
     return html;
   } catch (error) {
     console.error(`Error cleaning HTML: ${error}`);

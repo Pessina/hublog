@@ -4,7 +4,7 @@ export function ScrapingStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
   const bus = new EventBus(stack, "bus", {
     defaults: {
-      retries: 10,
+      retries: 0,
     },
   });
 
@@ -15,9 +15,19 @@ export function ScrapingStack({ stack }: StackContext) {
       },
     },
     routes: {
-      "POST /scrape": {
+      "POST /scrap/sitemap": {
         function: {
-          handler: "packages/functions/src/lambda.urlHandler",
+          handler: "packages/functions/src/lambda.sitemapUrlHandler",
+        },
+      },
+      "POST /scrap/url-single": {
+        function: {
+          handler: "packages/functions/src/lambda.singleUrlHandler",
+        },
+      },
+      "POST /scrap/url-list": {
+        function: {
+          handler: "packages/functions/src/lambda.urlListHandler",
         },
       },
     },

@@ -11,7 +11,7 @@ export const urlHandler = ApiHandler(async (evt) => {
   const domain = url.hostname;
 
   const urlList = await Scrap.checkRobotsAndSitemap(domain);
-  await Promise.all(urlList.slice(0, 3).map(async (u) => Url.create(u)));
+  await Promise.all(urlList.slice(0, 2).map(async (u) => Url.create(u)));
 
   return {
     statusCode: 200,

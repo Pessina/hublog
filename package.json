@@ -14,9 +14,9 @@
   "devDependencies": {
     "@tsconfig/node18": "^18.2.2",
     "@types/xml2js": "^0.4.13",
-    "aws-cdk-lib": "2.102.0",
+    "aws-cdk-lib": "2.103.1",
     "constructs": "10.3.0",
-    "sst": "^2.31.0",
+    "sst": "^2.32.2",
     "typescript": "^5.2.2"
   },
   "workspaces": [
@@ -24,6 +24,6 @@
   ],
   "dependencies": {
     "@mozilla/readability": "^0.4.4",
-    "linkedom": "^0.15.6"
+    "linkedom": "^0.16.1"
   }
 }

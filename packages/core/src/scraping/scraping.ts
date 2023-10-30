@@ -22,58 +22,56 @@ export async function create(scrap: string) {
   });
 }
 
-async function getRobotsTxt(domain: string): Promise<string> {
-  try {
-    const { data: robotsTxt } = await axios.get(`https://${domain}/robots.txt`);
-    return robotsTxt;
-  } catch (error) {
-    console.error(`Error fetching robots.txt: ${error}`);
-    throw error;
-  }
-}
-
 async function getSitemap(domain: string): Promise<string[]> {
   const urls: string[] = [];
-  const stack: string[] = [`https://${domain}/sitemap.xml`];
+  const sitemapUrls = [
+    `https://${domain}/sitemap_index.xml`,
+    `https://${domain}/sitemap.xml`,
+  ];
   const sitemapRegex = /https?:\/\/.*\/.*sitemap.*\.xml$/i;
+  const parser = new xml2js.Parser();
+  const stack: string[] = [];
+
+  for (const sitemapUrl of sitemapUrls) {
+    try {
+      const { data: sitemapXml } = await axios.get(sitemapUrl);
+      const sitemap = await parser.parseStringPromise(sitemapXml);
+      const urlList: string[] =
+        sitemap.urlset?.url.map((u: { loc: string[] }) => u.loc[0]) ||
+        sitemap.sitemapindex?.sitemap.map((u: { loc: string[] }) => u.loc[0]) ||
+        [];
+
+      urlList.forEach((url: string) =>
+        sitemapRegex.test(url) ? stack.push(url) : urls.push(url)
+      );
+      break;
+    } catch (error) {
+      console.error(`Error fetching sitemap from ${sitemapUrl}: ${error}`);
+    }
+  }
 
   while (stack.length > 0) {
     const currentUrl = stack.pop()!;
     try {
       const { data: sitemapXml } = await axios.get(currentUrl);
-      const parser = new xml2js.Parser();
       const sitemap = await parser.parseStringPromise(sitemapXml);
-      let urlList: string[] = [];
-      if (sitemap.urlset) {
-        urlList = sitemap.urlset.url.map((u: any) => u.loc[0]);
-      } else if (sitemap.sitemapindex) {
-        urlList = sitemap.sitemapindex.sitemap.map((u: any) => u.loc[0]);
-      }
+      const urlList: string[] =
+        sitemap.urlset?.url.map((u: { loc: string[] }) => u.loc[0]) ||
+        sitemap.sitemapindex?.sitemap.map((u: { loc: string[] }) => u.loc[0]) ||
+        [];
 
-      for (const url of urlList) {
-        if (sitemapRegex.test(url)) {
-          stack.push(url);
-        } else {
-          urls.push(url);
-        }
-      }
+      urlList.forEach((url: string) =>
+        sitemapRegex.test(url) ? stack.push(url) : urls.push(url)
+      );
     } catch (error) {
       console.error(`Error fetching sitemap: ${error}`);
-      throw error;
     }
   }
   return urls;
 }
 
 export async function checkRobotsAndSitemap(domain: string): Promise<string[]> {
-  const robotsTxt = await getRobotsTxt(domain);
-  const isAllowed = !robotsTxt.includes(`User-agent: *\nDisallow: /`);
-  if (isAllowed) {
-    const sitemap = await getSitemap(domain);
-    return sitemap;
-  } else {
-    throw new Error(`User-agent * is disallowed from ${domain}`);
-  }
+  return await getSitemap(domain);
 }
 
 export async function fetchPageContent(url: string): Promise<string> {
@@ -100,6 +98,7 @@ export function cleanHTML(html: string): string {
   try {
     html = html.replace(/<a[^>]*>([^<]+)<\/a>/g, "$1");
     html = html.replace(/<img[^>]*>/g, "");
+    html = html.replace(/<svg[^>]*>.*?<\/svg>/gs, "");
     html = html.replace(/\s\s+/g, " ").trim();
     return html;
   } catch (error) {

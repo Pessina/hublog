@@ -55,7 +55,7 @@ export const urlListHandler = ApiHandler(async (evt) => {
 });
 
 export const scrapingHandler = EventHandler(Url.Events.Created, async (evt) => {
-  const url = evt.properties.url;
+  const { url } = evt.properties;
   const rawHTML = await Scrap.fetchPageContent(url);
   const cleanHTML = Scrap.cleanHTML(rawHTML);
   await Scrap.create(cleanHTML, evt.properties.language);
@@ -64,31 +64,36 @@ export const scrapingHandler = EventHandler(Url.Events.Created, async (evt) => {
 export const translationHandler = EventHandler(
   Scrap.Events.Created,
   async (evt) => {
+    const { language, scrap } = evt.properties;
+
     const wordpress = new WordPress(
       "fs.pessina@gmail.com",
       Config.WORDPRESS_API_KEY,
       "blogify.net"
     );
-    const html = evt.properties.scrap;
-    const translatedHTML = await Translation.translateHTML(
-      html,
-      evt.properties.language
-    );
+
+    const html = scrap;
+    const translatedHTML = await Translation.translateHTML(html, language);
+
+    await wordpress.setPost({
+      title: "Translated Post",
+      content: translatedHTML,
+      status: "publish",
+    });
   }
 );
 
-export const addWordpressPostsHandler = ApiHandler(async (evt) => {
+export const addWordPressPostHandler = ApiHandler(async (evt) => {
+  const { html, title, status } = JSON.parse(evt.body ?? "");
   const wordpress = new WordPress(
     "fs.pessina@gmail.com",
-    "ZB3o htNT rd9m cgtF RYFM oL58",
+    Config.WORDPRESS_API_KEY,
     "blogify.net"
   );
-  const evtJSON = JSON.parse(evt.body ?? "");
-  const postData = {
-    title: evtJSON.title,
-    content: evtJSON.content,
-    status: "publish",
-  };
-  const res = await wordpress.setPost(postData);
-  return res;
+
+  await wordpress.setPost({
+    title: title,
+    content: html,
+    status: status,
+  });
 });

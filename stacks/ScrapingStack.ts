@@ -41,7 +41,7 @@ export function ScrapingStack({ stack }: StackContext) {
   });
 
   bus.subscribe("scrap.created", {
-    bind: [OPEN_AI_KEY],
+    bind: [OPEN_AI_KEY, WORDPRESS_API_KEY],
     handler: "packages/functions/src/lambda.translationHandler",
     timeout: "60 seconds",
   });

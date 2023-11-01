@@ -1,78 +1,7 @@
 import axios from "axios";
 import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
-import { event } from "../events/events";
-import { z } from "zod";
-import crypto from "crypto";
-import xml2js from "xml2js";
-
-export const Events = {
-  Created: event("scrap.created", {
-    id: z.string(),
-    scrap: z.string(),
-    language: z.string(),
-  }),
-};
-
-export async function create(scrap: string, language: string) {
-  const id = crypto.randomUUID();
-
-  await Events.Created.publish({
-    id,
-    scrap,
-    language,
-  });
-}
-
-async function fetchSitemap(url: string): Promise<string[]> {
-  const parser = new xml2js.Parser();
-  const { data: sitemapXml } = await axios.get(url);
-  const sitemap = await parser.parseStringPromise(sitemapXml);
-  return (
-    sitemap.urlset?.url.map((u: { loc: string[] }) => u.loc[0]) ||
-    sitemap.sitemapindex?.sitemap.map((u: { loc: string[] }) => u.loc[0]) ||
-    []
-  );
-}
-
-async function getSitemap(domain: string): Promise<string[]> {
-  const urls: string[] = [];
-  const stack: string[] = [];
-  const sitemapUrls = [
-    `https://${domain}/sitemap_index.xml`,
-    `https://${domain}/sitemap.xml`,
-  ];
-  const sitemapRegex = /https?:\/\/.*\/.*sitemap.*\.xml$/i;
-
-  for (const sitemapUrl of sitemapUrls) {
-    try {
-      const urlList = await fetchSitemap(sitemapUrl);
-      urlList.forEach((url: string) =>
-        sitemapRegex.test(url) ? stack.push(url) : urls.push(url)
-      );
-      break;
-    } catch (error) {
-      console.error(`Error fetching sitemap from ${sitemapUrl}: ${error}`);
-    }
-  }
-
-  while (stack.length > 0) {
-    const currentUrl = stack.pop()!;
-    try {
-      const urlList = await fetchSitemap(currentUrl);
-      urlList.forEach((url: string) =>
-        sitemapRegex.test(url) ? stack.push(url) : urls.push(url)
-      );
-    } catch (error) {
-      console.error(`Error fetching sitemap: ${error}`);
-    }
-  }
-  return urls;
-}
-
-export async function checkRobotsAndSitemap(domain: string): Promise<string[]> {
-  return await getSitemap(domain);
-}
+import { createForScrap } from "./events";
 
 export async function fetchPageContent(url: string): Promise<string> {
   try {
@@ -106,3 +35,7 @@ export function cleanHTML(html: string): string {
     throw error;
   }
 }
+
+export const createEventForScrap = async (html: string) => {
+  await createForScrap(html);
+};

@@ -1,4 +1,7 @@
 import { StackContext, Api, Config, EventBus } from "sst/constructs";
+import { UrlEventNames } from "@hublog/core/src/url";
+import { TranslationEventNames } from "@hublog/core/src/translation";
+import { ScrapEventNames } from "@hublog/core/src/scraping";
 
 export function ScrapingStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
@@ -26,27 +29,29 @@ export function ScrapingStack({ stack }: StackContext) {
           handler: "packages/functions/src/lambda.urlListHandler",
         },
       },
-      "POST /wordpress/post": {
-        function: {
-          handler: "packages/functions/src/lambda.addWordpressPostsHandler",
-          bind: [WORDPRESS_API_KEY],
-        },
-      },
     },
   });
 
-  bus.subscribe("url.created", {
+  bus.subscribe(UrlEventNames.CreatedForSitemap, {
+    handler: "packages/functions/src/lambda.sitemapHandler",
+    bind: [bus],
+  });
+
+  bus.subscribe(UrlEventNames.CreatedForUrl, {
     handler: "packages/functions/src/lambda.scrapingHandler",
     bind: [bus],
   });
 
-  bus.subscribe("scrap.created", {
-    bind: [OPEN_AI_KEY, WORDPRESS_API_KEY],
+  bus.subscribe(ScrapEventNames.Created, {
     handler: "packages/functions/src/lambda.translationHandler",
     timeout: "60 seconds",
+    bind: [OPEN_AI_KEY, bus],
   });
 
-  bus.attachPermissions(["ses:SendEmail"]);
+  bus.subscribe(TranslationEventNames.CreatedForTranslation, {
+    bind: [WORDPRESS_API_KEY],
+    handler: "packages/functions/src/lambda.postWordPressHandler",
+  });
 
   stack.addOutputs({
     ApiEndpoint: api.url,

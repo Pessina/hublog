@@ -1,99 +1,91 @@
 import { ApiHandler } from "sst/node/api";
 
-import { Translation } from "@hublog/core/src/translation";
+import {
+  TranslationUtils,
+  TranslationEvents,
+} from "@hublog/core/src/translation";
 import { EventHandler } from "sst/node/event-bus";
-import { Url } from "@hublog/core/src/url";
-import { Scrap } from "@hublog/core/src/scraping";
+import { UrlUtils, UrlEvents } from "@hublog/core/src/url";
+import { ScrapUtils, ScrapEvents } from "@hublog/core/src/scraping";
 import { WordPress } from "@hublog/core/src/wordpress";
 import { Config } from "sst/node/config";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
-  const evtJSON = JSON.parse(evt.body ?? "");
-  const url = new URL(evtJSON.url);
-  const domain = url.hostname;
-
-  const urlList = await Scrap.checkRobotsAndSitemap(domain);
-  await Promise.all(
-    urlList.slice(0, 5).map(async (u) => Url.create(u, evtJSON.language))
-  );
-
-  return {
-    statusCode: 200,
-  };
+  const { url } = JSON.parse(evt.body ?? "");
+  try {
+    await UrlUtils.createEventForSitemap(url);
+    return {
+      statusCode: 200,
+    };
+  } catch (error: any) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        message: `Error creating event for sitemap ${url}: ${error?.message}`,
+      }),
+    };
+  }
 });
 
 export const urlListHandler = ApiHandler(async (evt) => {
-  let urls: string[];
-  const evtJSON = JSON.parse(evt.body ?? "");
+  const { urls } = JSON.parse(evt.body ?? "");
   try {
-    urls = evtJSON.urls;
-    if (!Array.isArray(urls)) {
-      throw new Error();
-    }
-  } catch (error) {
+    await UrlUtils.createEventsForUrls(urls);
     return {
-      statusCode: 400,
-      body: JSON.stringify({ message: "Invalid URL list format" }),
+      statusCode: 200,
+    };
+  } catch (error: any) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        message: `Error creating events for urls: ${error?.message}`,
+      }),
     };
   }
-
-  await Promise.all(
-    urls.map(async (urlString) => {
-      try {
-        const url = new URL(urlString);
-        Url.create(url.href, evtJSON.language);
-      } catch (error) {
-        console.error(`Invalid URL: ${urlString}`);
-        return;
-      }
-    })
-  );
-
-  return {
-    statusCode: 200,
-  };
 });
 
-export const scrapingHandler = EventHandler(Url.Events.Created, async (evt) => {
-  const { url } = evt.properties;
-  const rawHTML = await Scrap.fetchPageContent(url);
-  const cleanHTML = Scrap.cleanHTML(rawHTML);
-  await Scrap.create(cleanHTML, evt.properties.language);
-});
+export const sitemapHandler = EventHandler(
+  UrlEvents.CreatedForSitemap,
+  async (evt) => {
+    const { url } = evt.properties;
+    const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
+    await UrlUtils.createEventsForUrls(urls.slice(0, 5));
+  }
+);
+
+export const scrapingHandler = EventHandler(
+  UrlEvents.CreatedForUrl,
+  async (evt) => {
+    const { url } = evt.properties;
+    const rawHTML = await ScrapUtils.fetchPageContent(url);
+    const cleanHTML = ScrapUtils.cleanHTML(rawHTML);
+    await ScrapUtils.createEventForScrap(cleanHTML);
+  }
+);
 
 export const translationHandler = EventHandler(
-  Scrap.Events.Created,
+  ScrapEvents.Created,
   async (evt) => {
-    const { language, scrap } = evt.properties;
+    const { scrap } = evt.properties;
+    const translatedHTML = await TranslationUtils.translateHTML(scrap);
+    await TranslationUtils.createEventForTranslation(translatedHTML);
+  }
+);
 
+export const postWordPressHandler = EventHandler(
+  TranslationEvents.CreatedForTranslation,
+  async (evt) => {
+    const { html } = evt.properties;
     const wordpress = new WordPress(
       "fs.pessina@gmail.com",
       Config.WORDPRESS_API_KEY,
       "blogify.net"
     );
 
-    const html = scrap;
-    const translatedHTML = await Translation.translateHTML(html, language);
-
     await wordpress.setPost({
-      title: "Translated Post",
-      content: translatedHTML,
+      title: Date.now().toString(),
+      content: html,
       status: "publish",
     });
   }
 );
-
-export const addWordPressPostHandler = ApiHandler(async (evt) => {
-  const { html, title, status } = JSON.parse(evt.body ?? "");
-  const wordpress = new WordPress(
-    "fs.pessina@gmail.com",
-    Config.WORDPRESS_API_KEY,
-    "blogify.net"
-  );
-
-  await wordpress.setPost({
-    title: title,
-    content: html,
-    status: status,
-  });
-});

@@ -14,13 +14,7 @@ export class WordPress {
   async getPosts() {
     try {
       const res = await axios.get(
-        `https://${this.HOSTNAME}/wp-json/wp/v2/posts`,
-        {
-          auth: {
-            username: this.USERNAME,
-            password: this.PASSWORD,
-          },
-        }
+        `https://${this.HOSTNAME}/wp-json/wp/v2/posts`
       );
       return res.data;
     } catch (error) {

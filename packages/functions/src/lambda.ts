@@ -9,6 +9,7 @@ import { UrlUtils, UrlEvents } from "@hublog/core/src/url";
 import { ScrapUtils, ScrapEvents } from "@hublog/core/src/scraping";
 import { WordPress } from "@hublog/core/src/wordpress";
 import { Config } from "sst/node/config";
+import { createJob } from "@hublog/core/src/db/TranslationJobs";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   const { url } = JSON.parse(evt.body ?? "");
@@ -30,7 +31,16 @@ export const sitemapUrlHandler = ApiHandler(async (evt) => {
 export const urlListHandler = ApiHandler(async (evt) => {
   const { urls } = JSON.parse(evt.body ?? "");
   try {
-    await UrlUtils.createEventsForUrls(urls);
+    // await UrlUtils.createEventsForUrls(urls);
+
+    createJob({
+      jobId: "12345",
+      language: "English",
+      email: "test@example.com",
+      password: "password123",
+      targetBlogURL: "www.example.com",
+    });
+
     return {
       statusCode: 200,
     };

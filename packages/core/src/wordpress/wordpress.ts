@@ -4,11 +4,18 @@ export class WordPress {
   private USERNAME: string;
   private PASSWORD: string;
   private HOSTNAME: string;
+  private jobId?: string;
 
-  constructor(username: string, password: string, hostname: string) {
+  constructor(
+    username: string,
+    password: string,
+    hostname: string,
+    jobId?: string
+  ) {
     this.USERNAME = username;
     this.PASSWORD = password;
     this.HOSTNAME = hostname;
+    this.jobId = jobId;
   }
 
   async getPosts() {

@@ -23,7 +23,10 @@
     "packages/*"
   ],
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.441.0",
+    "@aws-sdk/lib-dynamodb": "^3.441.0",
     "@mozilla/readability": "^0.4.4",
+    "aws-sdk": "^2.1486.0",
     "linkedom": "^0.16.1"
   }
 }

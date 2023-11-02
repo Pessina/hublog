@@ -31,7 +31,7 @@ export const sitemapUrlHandler = ApiHandler(async (evt) => {
 export const urlListHandler = ApiHandler(async (evt) => {
   const { urls } = JSON.parse(evt.body ?? "");
   try {
-    // await UrlUtils.createEventsForUrls(urls);
+    await UrlUtils.createEventsForUrls(urls);
 
     createJob({
       jobId: "12345",

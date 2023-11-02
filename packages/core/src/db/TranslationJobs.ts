@@ -1,3 +1,11 @@
+/*
+
+TODO: 
+
+- SST can't properly inject the table name (pessina-hublog...) when using the aws-sdk v3, so I had to use the full name in order for it to work
+- If I use the v2 it won't recognize the import of the DynamoDB
+
+*/
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,

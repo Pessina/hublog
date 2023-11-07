@@ -1,13 +1,20 @@
-import { StackContext, Api, Config, EventBus, Table } from "sst/constructs";
+import {
+  StackContext,
+  Api,
+  Config,
+  EventBus,
+  Table,
+  Cron,
+} from "sst/constructs";
 import { UrlEventNames } from "@hublog/core/src/url";
 import { TranslationEventNames } from "@hublog/core/src/translation";
 import { ScrapEventNames } from "@hublog/core/src/scraping";
-import { TRANSLATION_JOBS_TABLE } from "@hublog/core/src/db/TranslationJobs";
+import { TranslationJobsDB } from "@hublog/core/src/db";
 
 export function ScrapingStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
 
-  const table = new Table(stack, TRANSLATION_JOBS_TABLE, {
+  const table = new Table(stack, TranslationJobsDB.TRANSLATION_JOBS_TABLE, {
     fields: {
       jobId: "string",
       language: "string",
@@ -17,6 +24,16 @@ export function ScrapingStack({ stack }: StackContext) {
       createdAt: "string",
     },
     primaryIndex: { partitionKey: "jobId" },
+  });
+
+  new Cron(stack, "DeleteOldTranslationJobs", {
+    schedule: "rate(1 day)",
+    job: {
+      function: {
+        handler: "packages/functions/src/lambda.deleteOldTranslationJobs",
+        bind: [table],
+      },
+    },
   });
 
   const bus = new EventBus(stack, "bus", {

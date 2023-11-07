@@ -9,19 +9,13 @@
     "deploy": "sst deploy",
     "remove": "sst remove",
     "console": "sst console",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint 'src/**/*.{js,ts,tsx,jsx}'"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@tsconfig/node18": "^18.2.2",
     "@types/xml2js": "^0.4.13",
-    "@typescript-eslint/eslint-plugin": "^6.10.0",
-    "@typescript-eslint/parser": "^6.10.0",
     "aws-cdk-lib": "2.103.1",
     "constructs": "10.3.0",
-    "eslint": "^8.53.0",
-    "eslint-plugin-import": "^2.29.0",
-    "eslint-plugin-unused-imports": "^3.0.0",
     "sst": "^2.32.2",
     "typescript": "^5.2.2"
   },

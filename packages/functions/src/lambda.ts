@@ -1,4 +1,5 @@
 import { ApiHandler } from "sst/node/api";
+import { Function } from "sst/constructs";
 import crypto from "crypto";
 
 import {
@@ -103,3 +104,10 @@ export const postWordPressHandler = EventHandler(
     });
   }
 );
+
+export const deleteOldTranslationJobs = async () => {
+  const jobs = await TranslationJobsDB.getJobs(
+    (job) => Date.now() - new Date(job.createdAt).getTime() > 86400000
+  );
+  jobs.forEach((job) => TranslationJobsDB.deleteJob(job.jobId));
+};

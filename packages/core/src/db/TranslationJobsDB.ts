@@ -4,6 +4,7 @@ import {
   PutCommand,
   GetCommand,
   DeleteCommand,
+  ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { Table } from "sst/node/table";
 import { z } from "zod";
@@ -13,7 +14,7 @@ export const TRANSLATION_JOBS_TABLE = "TranslationJobs";
 const client = new DynamoDBClient({ region: "us-east-1" });
 const dynamoDB = DynamoDBDocumentClient.from(client);
 
-interface Job {
+interface JobInput {
   jobId: string;
   language: string;
   email: string;
@@ -21,7 +22,11 @@ interface Job {
   targetBlogURL: string;
 }
 
-export const validateJob = (job: Job) => {
+interface Job extends JobInput {
+  createdAt: string;
+}
+
+export const validateJob = (job: JobInput) => {
   const jobSchema = z.object({
     jobId: z.string(),
     language: z.string(),
@@ -39,7 +44,7 @@ export const validateJob = (job: Job) => {
   return parsedJob.data;
 };
 
-export const createJob = async (job: Job) => {
+export const createJob = async (job: JobInput) => {
   const command = new PutCommand({
     TableName: Table.TranslationJobs.tableName,
     Item: { ...job, createdAt: new Date().toISOString() },
@@ -58,6 +63,22 @@ export const getJob = async (jobId: string): Promise<Job> => {
   }
 
   return res.Item as Job;
+};
+
+export const getJobs = async (
+  filter?: (job: Job) => boolean
+): Promise<Job[]> => {
+  const command = new ScanCommand({
+    TableName: Table.TranslationJobs.tableName,
+  });
+  const res = await dynamoDB.send(command);
+  let jobs = (res.Items as Job[]) || [];
+
+  if (filter) {
+    jobs = jobs.filter(filter);
+  }
+
+  return jobs;
 };
 
 export const deleteJob = async (jobId: string) => {

@@ -1,1 +1,1 @@
-export * as TranslationJobsDB from "./TranslationJobs";
+export * as TranslationJobsDB from "./TranslationJobsDB";

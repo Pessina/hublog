@@ -89,6 +89,8 @@ export const translationHandler = EventHandler(
   }
 );
 
+// TODO: GPT SEO handler (title, meta description, ...)
+
 export const postWordPressHandler = EventHandler(
   TranslationEvents.CreatedForTranslation,
   async (evt) => {
@@ -96,6 +98,8 @@ export const postWordPressHandler = EventHandler(
     const job = await TranslationJobsDB.getJob(jobId ?? "");
 
     const wordPress = new WordPress(job.email, job.password, job.targetBlogURL);
+
+    // TODO: GPT WordPress handler (slug, tags...)
 
     await wordPress.setPost({
       title: Date.now().toString(),

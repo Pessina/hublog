@@ -2,13 +2,19 @@ import axios from "axios";
 import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
 import { createForScrap } from "./events";
+import sanitizeHtml from "sanitize-html";
 
 export async function fetchPageContent(url: string): Promise<string> {
   try {
     const { data: html } = await axios.get(url);
-    const { window } = parseHTML(html);
-    const document = window.document;
-    const reader = new Readability(document);
+    const clean = sanitizeHtml(html, {
+      allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img"]),
+      allowedAttributes: {
+        ...sanitizeHtml.defaults.allowedAttributes,
+      },
+    });
+    const { window } = parseHTML(clean);
+    const reader = new Readability(window.document);
     const article = reader.parse();
 
     if (article && article.content) {
@@ -27,7 +33,7 @@ export function cleanHTML(html: string): string {
     html = html.replace(/<a[^>]*>([^<]+)<\/a>/g, "$1");
     html = html.replace(/<svg[^>]*>.*?<\/svg>/gs, "");
     html = html.replace(/\s\s+/g, " ").trim();
-    // TODO: Handle images properly instead of clean them
+    // TODO: Save images on S3 and reference them
     html = html.replace(/<img[^>]*>/g, "");
     return html;
   } catch (error) {

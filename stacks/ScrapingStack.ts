@@ -26,12 +26,14 @@ export function ScrapingStack({ stack }: StackContext) {
     primaryIndex: { partitionKey: "jobId" },
   });
 
+  // TODO: improve it by keeping a reference count to the job. If it's 0 it should be deleted
   new Cron(stack, "DeleteOldTranslationJobs", {
     schedule: "rate(1 day)",
     job: {
       function: {
         handler: "packages/functions/src/lambda.deleteOldTranslationJobs",
         bind: [table],
+        timeout: "360 seconds",
       },
     },
   });

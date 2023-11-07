@@ -1,5 +1,4 @@
 import { ApiHandler } from "sst/node/api";
-import { Function } from "sst/constructs";
 import crypto from "crypto";
 
 import {
@@ -62,7 +61,7 @@ export const sitemapHandler = EventHandler(
     const { url, jobId = "" } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
     // TODO: remove slice
-    await UrlUtils.createEventsForUrls(urls.slice(0, 1), jobId);
+    await UrlUtils.createEventsForUrls(urls.slice(0, 10), jobId);
   }
 );
 
@@ -80,6 +79,7 @@ export const translationHandler = EventHandler(
   ScrapEvents.Created,
   async (evt) => {
     const { scrap, jobId } = evt.properties;
+    TranslationJobsDB.updateJobReferenceCount(jobId ?? "", "add", 1);
     const job = await TranslationJobsDB.getJob(jobId ?? "");
     const translatedHTML = await TranslationUtils.translateHTML(
       scrap,
@@ -107,7 +107,8 @@ export const postWordPressHandler = EventHandler(
 
 export const deleteOldTranslationJobs = async () => {
   const jobs = await TranslationJobsDB.getJobs(
-    (job) => Date.now() - new Date(job.createdAt).getTime() > 86400000
+    (job) =>
+      Date.now() - new Date(job.lastAccessedAt).getTime() > 24 * 60 * 60 * 1000
   );
   jobs.forEach((job) => TranslationJobsDB.deleteJob(job.jobId));
 };

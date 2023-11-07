@@ -5,6 +5,7 @@ import {
   GetCommand,
   DeleteCommand,
   ScanCommand,
+  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { Table } from "sst/node/table";
 import { z } from "zod";
@@ -24,6 +25,8 @@ interface JobInput {
 
 interface Job extends JobInput {
   createdAt: string;
+  lastAccessedAt: string;
+  referenceCount: number;
 }
 
 export const validateJob = (job: JobInput) => {
@@ -47,7 +50,11 @@ export const validateJob = (job: JobInput) => {
 export const createJob = async (job: JobInput) => {
   const command = new PutCommand({
     TableName: Table.TranslationJobs.tableName,
-    Item: { ...job, createdAt: new Date().toISOString() },
+    Item: {
+      ...job,
+      createdAt: new Date().toISOString(),
+      lastAccessedAt: new Date().toISOString(),
+    },
   });
   return await dynamoDB.send(command);
 };
@@ -85,6 +92,26 @@ export const deleteJob = async (jobId: string) => {
   const command = new DeleteCommand({
     TableName: Table.TranslationJobs.tableName,
     Key: { jobId },
+  });
+  return await dynamoDB.send(command);
+};
+
+export const updateJobReferenceCount = async (
+  jobId: string,
+  action: "add" | "remove",
+  value: number
+) => {
+  const command = new UpdateCommand({
+    TableName: Table.TranslationJobs.tableName,
+    Key: { jobId },
+    UpdateExpression:
+      action === "add"
+        ? "add referenceCount :val set lastAccessedAt = :lastAccessedAt"
+        : "subtract referenceCount :val set lastAccessedAt = :lastAccessedAt",
+    ExpressionAttributeValues: {
+      ":val": value,
+      ":lastAccessedAt": new Date().toISOString(),
+    },
   });
   return await dynamoDB.send(command);
 };

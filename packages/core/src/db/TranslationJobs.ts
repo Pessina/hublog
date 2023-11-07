@@ -1,11 +1,3 @@
-/*
-
-TODO: 
-
-- SST can't properly inject the table name (pessina-hublog...) when using the aws-sdk v3, so I had to use the full name in order for it to work
-- If I use the v2 it won't recognize the import of the DynamoDB
-
-*/
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
@@ -28,25 +20,33 @@ interface Job {
   targetBlogURL: string;
 }
 
-export const createJob = async (job: Job) => {
+interface DynamoDBConfig {
+  TableName: string;
+}
+
+export const createJob = async (job: Job, config: DynamoDBConfig) => {
   const command = new PutCommand({
-    TableName: "pessina-hublog-hublog-TranslationJobs",
+    TableName: config.TableName,
     Item: job,
   });
   return await dynamoDB.send(command);
 };
 
-export const readJob = async (jobId: string) => {
+export const readJob = async (jobId: string, config: DynamoDBConfig) => {
   const command = new GetCommand({
-    TableName: "pessina-hublog-hublog-TranslationJobs",
+    TableName: config.TableName,
     Key: { jobId: jobId },
   });
   return await dynamoDB.send(command);
 };
 
-export const updateJob = async (jobId: string, updatedJob: Job) => {
+export const updateJob = async (
+  jobId: string,
+  updatedJob: Job,
+  config: DynamoDBConfig
+) => {
   const command = new UpdateCommand({
-    TableName: "pessina-hublog-hublog-TranslationJobs",
+    TableName: config.TableName,
     Key: { jobId: jobId },
     UpdateExpression: "SET #job = :job",
     ExpressionAttributeNames: { "#job": "job" },
@@ -56,9 +56,9 @@ export const updateJob = async (jobId: string, updatedJob: Job) => {
   return await dynamoDB.send(command);
 };
 
-export const deleteJob = async (jobId: string) => {
+export const deleteJob = async (jobId: string, config: DynamoDBConfig) => {
   const command = new DeleteCommand({
-    TableName: "pessina-hublog-hublog-TranslationJobs",
+    TableName: config.TableName,
     Key: { jobId: jobId },
   });
   return await dynamoDB.send(command);

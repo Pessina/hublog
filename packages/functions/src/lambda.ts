@@ -10,6 +10,7 @@ import { ScrapUtils, ScrapEvents } from "@hublog/core/src/scraping";
 import { WordPress } from "@hublog/core/src/wordpress";
 import { Config } from "sst/node/config";
 import { createJob } from "@hublog/core/src/db/TranslationJobs";
+import { Table } from "sst/node/table";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   const { url } = JSON.parse(evt.body ?? "");
@@ -33,13 +34,18 @@ export const urlListHandler = ApiHandler(async (evt) => {
   try {
     await UrlUtils.createEventsForUrls(urls);
 
-    createJob({
-      jobId: "12345",
-      language: "English",
-      email: "test@example.com",
-      password: "password123",
-      targetBlogURL: "www.example.com",
-    });
+    createJob(
+      {
+        jobId: "1",
+        language: "Spanish",
+        email: "fs.pessina@example.com",
+        password: "333333",
+        targetBlogURL: "www.example.com",
+      },
+      {
+        TableName: Table.TranslationJobs.tableName,
+      }
+    );
 
     return {
       statusCode: 200,

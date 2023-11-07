@@ -20,9 +20,7 @@ export class WordPress {
 
   async getPosts() {
     try {
-      const res = await axios.get(
-        `https://${this.HOSTNAME}/wp-json/wp/v2/posts`
-      );
+      const res = await axios.get(`${this.HOSTNAME}/wp-json/wp/v2/posts`);
       return res.data;
     } catch (error) {
       console.error(error);
@@ -51,7 +49,7 @@ export class WordPress {
   }) {
     try {
       const res = await axios.post(
-        `https://${this.HOSTNAME}/wp-json/wp/v2/posts`,
+        `${this.HOSTNAME}/wp-json/wp/v2/posts`,
         postData,
         {
           auth: {

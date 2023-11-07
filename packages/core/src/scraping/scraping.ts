@@ -36,6 +36,6 @@ export function cleanHTML(html: string): string {
   }
 }
 
-export const createEventForScrap = async (html: string) => {
-  await createForScrap(html);
+export const createEventForScrap = async (html: string, jobId?: string) => {
+  await createForScrap(html, jobId);
 };

@@ -3,9 +3,10 @@ import {
   DynamoDBDocumentClient,
   PutCommand,
   GetCommand,
-  UpdateCommand,
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
+import { Table } from "sst/node/table";
+import { z } from "zod";
 
 export const TRANSLATION_JOBS_TABLE = "TranslationJobs";
 
@@ -20,46 +21,49 @@ interface Job {
   targetBlogURL: string;
 }
 
-interface DynamoDBConfig {
-  TableName: string;
-}
+export const validateJob = (job: Job) => {
+  const jobSchema = z.object({
+    jobId: z.string(),
+    language: z.string(),
+    email: z.string().email(),
+    password: z.string(),
+    targetBlogURL: z.string().url(),
+  });
 
-export const createJob = async (job: Job, config: DynamoDBConfig) => {
+  const parsedJob = jobSchema.safeParse(job);
+
+  if (!parsedJob.success) {
+    throw new Error(`Invalid job data: ${parsedJob.error}`);
+  }
+
+  return parsedJob.data;
+};
+
+export const createJob = async (job: Job) => {
   const command = new PutCommand({
-    TableName: config.TableName,
-    Item: job,
+    TableName: Table.TranslationJobs.tableName,
+    Item: { ...job, createdAt: new Date().toISOString() },
   });
   return await dynamoDB.send(command);
 };
 
-export const readJob = async (jobId: string, config: DynamoDBConfig) => {
+export const getJob = async (jobId: string): Promise<Job> => {
   const command = new GetCommand({
-    TableName: config.TableName,
-    Key: { jobId: jobId },
+    TableName: Table.TranslationJobs.tableName,
+    Key: { jobId },
   });
-  return await dynamoDB.send(command);
+  const res = await dynamoDB.send(command);
+  if (!res.Item) {
+    throw new Error(`Job ${jobId} not found`);
+  }
+
+  return res.Item as Job;
 };
 
-export const updateJob = async (
-  jobId: string,
-  updatedJob: Job,
-  config: DynamoDBConfig
-) => {
-  const command = new UpdateCommand({
-    TableName: config.TableName,
-    Key: { jobId: jobId },
-    UpdateExpression: "SET #job = :job",
-    ExpressionAttributeNames: { "#job": "job" },
-    ExpressionAttributeValues: { ":job": updatedJob },
-    ReturnValues: "ALL_NEW",
-  });
-  return await dynamoDB.send(command);
-};
-
-export const deleteJob = async (jobId: string, config: DynamoDBConfig) => {
+export const deleteJob = async (jobId: string) => {
   const command = new DeleteCommand({
-    TableName: config.TableName,
-    Key: { jobId: jobId },
+    TableName: Table.TranslationJobs.tableName,
+    Key: { jobId },
   });
   return await dynamoDB.send(command);
 };

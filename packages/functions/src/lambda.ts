@@ -1,4 +1,5 @@
 import { ApiHandler } from "sst/node/api";
+import crypto from "crypto";
 
 import {
   TranslationUtils,
@@ -8,14 +9,17 @@ import { EventHandler } from "sst/node/event-bus";
 import { UrlUtils, UrlEvents } from "@hublog/core/src/url";
 import { ScrapUtils, ScrapEvents } from "@hublog/core/src/scraping";
 import { WordPress } from "@hublog/core/src/wordpress";
-import { Config } from "sst/node/config";
-import { createJob } from "@hublog/core/src/db/TranslationJobs";
-import { Table } from "sst/node/table";
+import { TranslationJobsDB } from "@hublog/core/src/db";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
-  const { url } = JSON.parse(evt.body ?? "");
+  const { url, job } = JSON.parse(evt.body ?? "");
   try {
-    await UrlUtils.createEventForSitemap(url);
+    const jobId = crypto.randomUUID();
+    await UrlUtils.createEventForSitemap(url, jobId);
+    await TranslationJobsDB.createJob(
+      TranslationJobsDB.validateJob({ ...job, jobId })
+    );
+
     return {
       statusCode: 200,
     };
@@ -30,21 +34,12 @@ export const sitemapUrlHandler = ApiHandler(async (evt) => {
 });
 
 export const urlListHandler = ApiHandler(async (evt) => {
-  const { urls } = JSON.parse(evt.body ?? "");
+  const { urls, job } = JSON.parse(evt.body ?? "");
   try {
-    await UrlUtils.createEventsForUrls(urls);
-
-    createJob(
-      {
-        jobId: "1",
-        language: "Spanish",
-        email: "fs.pessina@example.com",
-        password: "333333",
-        targetBlogURL: "www.example.com",
-      },
-      {
-        TableName: Table.TranslationJobs.tableName,
-      }
+    const jobId = crypto.randomUUID();
+    await UrlUtils.createEventsForUrls(urls, jobId);
+    await TranslationJobsDB.createJob(
+      TranslationJobsDB.validateJob({ ...job, jobId })
     );
 
     return {
@@ -63,42 +58,45 @@ export const urlListHandler = ApiHandler(async (evt) => {
 export const sitemapHandler = EventHandler(
   UrlEvents.CreatedForSitemap,
   async (evt) => {
-    const { url } = evt.properties;
+    const { url, jobId = "" } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
-    await UrlUtils.createEventsForUrls(urls.slice(0, 5));
+    // TODO: remove slice
+    await UrlUtils.createEventsForUrls(urls.slice(0, 1), jobId);
   }
 );
 
 export const scrapingHandler = EventHandler(
   UrlEvents.CreatedForUrl,
   async (evt) => {
-    const { url } = evt.properties;
+    const { url, jobId = "" } = evt.properties;
     const rawHTML = await ScrapUtils.fetchPageContent(url);
     const cleanHTML = ScrapUtils.cleanHTML(rawHTML);
-    await ScrapUtils.createEventForScrap(cleanHTML);
+    await ScrapUtils.createEventForScrap(cleanHTML, jobId);
   }
 );
 
 export const translationHandler = EventHandler(
   ScrapEvents.Created,
   async (evt) => {
-    const { scrap } = evt.properties;
-    const translatedHTML = await TranslationUtils.translateHTML(scrap);
-    await TranslationUtils.createEventForTranslation(translatedHTML);
+    const { scrap, jobId } = evt.properties;
+    const job = await TranslationJobsDB.getJob(jobId ?? "");
+    const translatedHTML = await TranslationUtils.translateHTML(
+      scrap,
+      job.language
+    );
+    await TranslationUtils.createEventForTranslation(translatedHTML, jobId);
   }
 );
 
 export const postWordPressHandler = EventHandler(
   TranslationEvents.CreatedForTranslation,
   async (evt) => {
-    const { html } = evt.properties;
-    const wordpress = new WordPress(
-      "fs.pessina@gmail.com",
-      Config.WORDPRESS_API_KEY,
-      "blogify.net"
-    );
+    const { html, jobId } = evt.properties;
+    const job = await TranslationJobsDB.getJob(jobId ?? "");
 
-    await wordpress.setPost({
+    const wordPress = new WordPress(job.email, job.password, job.targetBlogURL);
+
+    await wordPress.setPost({
       title: Date.now().toString(),
       content: html,
       status: "publish",

@@ -6,7 +6,6 @@ import { TRANSLATION_JOBS_TABLE } from "@hublog/core/src/db/TranslationJobs";
 
 export function ScrapingStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
-  const WORDPRESS_API_KEY = new Config.Secret(stack, "WORDPRESS_API_KEY");
 
   const table = new Table(stack, TRANSLATION_JOBS_TABLE, {
     fields: {
@@ -15,6 +14,7 @@ export function ScrapingStack({ stack }: StackContext) {
       email: "string",
       password: "string",
       targetBlogURL: "string",
+      createdAt: "string",
     },
     primaryIndex: { partitionKey: "jobId" },
   });
@@ -58,11 +58,11 @@ export function ScrapingStack({ stack }: StackContext) {
   bus.subscribe(ScrapEventNames.Created, {
     handler: "packages/functions/src/lambda.translationHandler",
     timeout: "60 seconds",
-    bind: [OPEN_AI_KEY, bus],
+    bind: [OPEN_AI_KEY, bus, table],
   });
 
   bus.subscribe(TranslationEventNames.CreatedForTranslation, {
-    bind: [WORDPRESS_API_KEY],
+    bind: [table],
     handler: "packages/functions/src/lambda.postWordPressHandler",
   });
 

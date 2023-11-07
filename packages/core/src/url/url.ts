@@ -42,22 +42,22 @@ export async function getSitemapUrlsFromDomain(url: string): Promise<string[]> {
   return urls;
 }
 
-export async function createEventsForUrls(urls: string[]) {
+export async function createEventsForUrls(urls: string[], jobId?: string) {
   for (const url of urls) {
     try {
       new URL(url);
 
-      await UrlEvents.createForUrl(url);
+      await UrlEvents.createForUrl(url, jobId);
     } catch (error) {
       console.error(`Error creating event for ${url}: ${error}`);
     }
   }
 }
 
-export async function createEventForSitemap(url: string) {
+export async function createEventForSitemap(url: string, jobId?: string) {
   try {
     new URL(url);
-    await UrlEvents.createForSitemap(url);
+    await UrlEvents.createForSitemap(url, jobId);
   } catch (error) {
     console.error(`Error creating event for sitemap ${url}: ${error}`);
   }

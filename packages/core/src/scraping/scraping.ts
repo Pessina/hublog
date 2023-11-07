@@ -13,6 +13,7 @@ export async function fetchPageContent(url: string): Promise<string> {
       allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img"]),
       allowedAttributes: {
         ...sanitizeHtml.defaults.allowedAttributes,
+        a: [],
       },
     });
     const { window } = parseHTML(clean);

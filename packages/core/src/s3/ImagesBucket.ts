@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  ObjectCannedACL,
 } from "@aws-sdk/client-s3";
 import { Bucket } from "sst/node/bucket";
 
@@ -12,16 +13,17 @@ const s3Client = new S3Client({});
 
 export const uploadImage = async (
   image: Buffer,
-  imageName: string
+  imageName: string,
+  config: { isPublic?: boolean } = {}
 ): Promise<void> => {
   const uploadParams = {
     Bucket: Bucket.ImagesBucket.bucketName,
     Key: imageName,
     Body: image,
+    ACL: config.isPublic ? ObjectCannedACL.public_read : undefined,
   };
   try {
-    const data = await s3Client.send(new PutObjectCommand(uploadParams));
-    console.log("Image uploaded successfully", data);
+    await s3Client.send(new PutObjectCommand(uploadParams));
   } catch (err) {
     console.log("Error", err);
   }
@@ -33,8 +35,7 @@ export const retrieveImage = async (imageName: string): Promise<void> => {
     Key: imageName,
   };
   try {
-    const data = await s3Client.send(new GetObjectCommand(retrieveParams));
-    console.log("Image retrieved successfully", data);
+    await s3Client.send(new GetObjectCommand(retrieveParams));
   } catch (err) {
     console.log("Error", err);
   }
@@ -46,8 +47,7 @@ export const deleteImage = async (imageName: string): Promise<void> => {
     Key: imageName,
   };
   try {
-    const data = await s3Client.send(new DeleteObjectCommand(deleteParams));
-    console.log("Image deleted successfully", data);
+    await s3Client.send(new DeleteObjectCommand(deleteParams));
   } catch (err) {
     console.log("Error", err);
   }

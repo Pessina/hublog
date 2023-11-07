@@ -1,4 +1,5 @@
 import axios from "axios";
+import { createForImageUpload } from "./events";
 
 export const processImageSrc = async (imgSrc: string): Promise<Buffer> => {
   let imageBuffer: Buffer;
@@ -16,4 +17,13 @@ export const processImageSrc = async (imgSrc: string): Promise<Buffer> => {
     throw new Error("Unsupported image source");
   }
   return imageBuffer;
+};
+
+export const createEventForImagesUpload = async (
+  images: { urlHash: string; imgSrc: string }[],
+  jobId?: string
+) => {
+  await Promise.all(
+    images.map((i) => createForImageUpload(i.imgSrc, i.urlHash, jobId))
+  );
 };

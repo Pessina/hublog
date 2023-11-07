@@ -76,6 +76,7 @@ export const scrapingHandler = EventHandler(
       await ScrapUtils.replaceImagesWithPlaceholders(rawHTML);
     const cleanHTML = ScrapUtils.cleanHTML(noImagesHTML);
     await ScrapUtils.createEventForScrap(cleanHTML, jobId);
+    await ImageUtils.createEventForImagesUpload(images, jobId);
   }
 );
 
@@ -84,7 +85,7 @@ export const imageUploadHandler = EventHandler(
   async (evt) => {
     const { urlHash, imgSrc } = evt.properties;
     const imageBuffer = await ImageUtils.processImageSrc(imgSrc);
-    await ImagesBucket.uploadImage(imageBuffer, urlHash);
+    await ImagesBucket.uploadImage(imageBuffer, urlHash, { isPublic: true });
   }
 );
 
@@ -113,6 +114,8 @@ export const postWordPressHandler = EventHandler(
     const wordPress = new WordPress(job.email, job.password, job.targetBlogURL);
 
     // TODO: GPT WordPress handler (slug, tags...)
+
+    ScrapUtils.addBackImageUrls(html);
 
     await wordPress.setPost({
       title: Date.now().toString(),

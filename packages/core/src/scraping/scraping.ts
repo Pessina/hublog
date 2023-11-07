@@ -4,6 +4,7 @@ import { Readability } from "@mozilla/readability";
 import { createForScrap } from "./events";
 import sanitizeHtml from "sanitize-html";
 import crypto from "crypto";
+import { retrieveImage } from "../s3/ImagesBucket";
 
 export async function fetchPageContent(url: string): Promise<string> {
   try {
@@ -50,7 +51,22 @@ export async function replaceImagesWithPlaceholders(html: string): Promise<{
       img.setAttribute("src", urlHash);
     });
 
-  return { noImagesHTML: dom.serialize(), images };
+  return { noImagesHTML: dom.document.toString(), images };
+}
+
+export async function addBackImageUrls(html: string): Promise<string> {
+  const dom = parseHTML(html);
+  const images = dom.window.document.querySelectorAll("img");
+
+  for (const img of images) {
+    const urlHash = img.getAttribute("src");
+    if (urlHash) {
+      const imageUrl = await retrieveImage(urlHash);
+      img.setAttribute("src", imageUrl);
+    }
+  }
+
+  return dom.document.toString();
 }
 
 export function cleanHTML(html: string): string {

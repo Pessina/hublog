@@ -29,15 +29,14 @@ export function ScrapingStack({ stack }: StackContext) {
     primaryIndex: { partitionKey: "jobId" },
   });
 
-  const imageTable = new Table(stack, "Images", {
-    fields: {
-      urlHash: "string",
-      url: "string",
-    },
-    primaryIndex: { partitionKey: "urlHash" },
+  const imageBucket = new Bucket(stack, ImagesBucket.IMAGES_BUCKET, {
+    cors: [
+      {
+        allowedMethods: ["GET"],
+        allowedOrigins: ["*"],
+      },
+    ],
   });
-
-  const imageBucket = new Bucket(stack, ImagesBucket.IMAGES_BUCKET);
 
   // TODO: improve it by keeping a reference count to the job. If it's 0 it should be deleted
   new Cron(stack, "DeleteOldTranslationJobs", {
@@ -89,7 +88,7 @@ export function ScrapingStack({ stack }: StackContext) {
 
   bus.subscribe(ImagesEventNames.Upload, {
     handler: "packages/functions/src/lambda.imageUploadHandler",
-    bind: [bus, imageBucket, imageTable],
+    bind: [bus, imageBucket],
   });
 
   bus.subscribe(ScrapEventNames.Created, {
@@ -99,7 +98,7 @@ export function ScrapingStack({ stack }: StackContext) {
   });
 
   bus.subscribe(TranslationEventNames.CreatedForTranslation, {
-    bind: [table],
+    bind: [table, imageBucket],
     handler: "packages/functions/src/lambda.postWordPressHandler",
   });
 

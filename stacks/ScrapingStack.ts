@@ -5,11 +5,14 @@ import {
   EventBus,
   Table,
   Cron,
+  Bucket,
 } from "sst/constructs";
 import { UrlEventNames } from "@hublog/core/src/url";
 import { TranslationEventNames } from "@hublog/core/src/translation";
+import { ImagesEventNames } from "@hublog/core/src/images";
 import { ScrapEventNames } from "@hublog/core/src/scraping";
 import { TranslationJobsDB } from "@hublog/core/src/db";
+import { ImagesBucket } from "@hublog/core/src/s3";
 
 export function ScrapingStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
@@ -25,6 +28,16 @@ export function ScrapingStack({ stack }: StackContext) {
     },
     primaryIndex: { partitionKey: "jobId" },
   });
+
+  const imageTable = new Table(stack, "Images", {
+    fields: {
+      urlHash: "string",
+      url: "string",
+    },
+    primaryIndex: { partitionKey: "urlHash" },
+  });
+
+  const imageBucket = new Bucket(stack, ImagesBucket.IMAGES_BUCKET);
 
   // TODO: improve it by keeping a reference count to the job. If it's 0 it should be deleted
   new Cron(stack, "DeleteOldTranslationJobs", {
@@ -72,6 +85,11 @@ export function ScrapingStack({ stack }: StackContext) {
   bus.subscribe(UrlEventNames.CreatedForUrl, {
     handler: "packages/functions/src/lambda.scrapingHandler",
     bind: [bus],
+  });
+
+  bus.subscribe(ImagesEventNames.Upload, {
+    handler: "packages/functions/src/lambda.imageUploadHandler",
+    bind: [bus, imageBucket, imageTable],
   });
 
   bus.subscribe(ScrapEventNames.Created, {

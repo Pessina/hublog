@@ -1,8 +1,9 @@
 import axios from "axios";
-import { parseHTML } from "linkedom";
+import { HTMLImageElement, parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
 import { createForScrap } from "./events";
 import sanitizeHtml from "sanitize-html";
+import crypto from "crypto";
 
 export async function fetchPageContent(url: string): Promise<string> {
   try {
@@ -28,13 +29,34 @@ export async function fetchPageContent(url: string): Promise<string> {
   }
 }
 
+function hashUrl(url: string): string {
+  return crypto.createHash("sha256").update(url).digest("hex");
+}
+
+export async function replaceImagesWithPlaceholders(html: string): Promise<{
+  noImagesHTML: string;
+  images: Array<{ urlHash: string; imgSrc: string }>;
+}> {
+  const dom = parseHTML(html);
+  let images: Array<{ urlHash: string; imgSrc: string }> = [];
+
+  dom.window.document
+    .querySelectorAll("img")
+    .forEach((img: HTMLImageElement) => {
+      const src = img.getAttribute("src");
+      if (!src) return;
+      const urlHash = hashUrl(src);
+      images.push({ urlHash, imgSrc: src });
+      img.setAttribute("src", urlHash);
+    });
+
+  return { noImagesHTML: dom.serialize(), images };
+}
+
 export function cleanHTML(html: string): string {
   try {
     html = html.replace(/<a[^>]*>([^<]+)<\/a>/g, "$1");
-    html = html.replace(/<svg[^>]*>.*?<\/svg>/gs, "");
     html = html.replace(/\s\s+/g, " ").trim();
-    // TODO: Save images on S3 and reference them
-    html = html.replace(/<img[^>]*>/g, "");
     return html;
   } catch (error) {
     console.error(`Error cleaning HTML: ${error}`);

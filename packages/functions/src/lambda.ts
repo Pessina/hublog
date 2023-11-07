@@ -7,9 +7,11 @@ import {
 } from "@hublog/core/src/translation";
 import { EventHandler } from "sst/node/event-bus";
 import { UrlUtils, UrlEvents } from "@hublog/core/src/url";
+import { ImageUtils, ImagesEvents } from "@hublog/core/src/images";
 import { ScrapUtils, ScrapEvents } from "@hublog/core/src/scraping";
 import { WordPress } from "@hublog/core/src/wordpress";
 import { TranslationJobsDB } from "@hublog/core/src/db";
+import { ImagesBucket } from "@hublog/core/src/s3";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   const { url, job } = JSON.parse(evt.body ?? "");
@@ -61,7 +63,7 @@ export const sitemapHandler = EventHandler(
     const { url, jobId = "" } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
     // TODO: remove slice
-    await UrlUtils.createEventsForUrls(urls.slice(0, 10), jobId);
+    await UrlUtils.createEventsForUrls(urls.slice(0, 3), jobId);
   }
 );
 
@@ -70,8 +72,19 @@ export const scrapingHandler = EventHandler(
   async (evt) => {
     const { url, jobId = "" } = evt.properties;
     const rawHTML = await ScrapUtils.fetchPageContent(url);
-    const cleanHTML = ScrapUtils.cleanHTML(rawHTML);
+    const { noImagesHTML, images } =
+      await ScrapUtils.replaceImagesWithPlaceholders(rawHTML);
+    const cleanHTML = ScrapUtils.cleanHTML(noImagesHTML);
     await ScrapUtils.createEventForScrap(cleanHTML, jobId);
+  }
+);
+
+export const imageUploadHandler = EventHandler(
+  ImagesEvents.Upload,
+  async (evt) => {
+    const { urlHash, imgSrc } = evt.properties;
+    const imageBuffer = await ImageUtils.processImageSrc(imgSrc);
+    await ImagesBucket.uploadImage(imageBuffer, urlHash);
   }
 );
 

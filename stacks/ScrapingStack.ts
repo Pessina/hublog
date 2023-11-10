@@ -84,7 +84,7 @@ export function ScrapingStack({ stack }: StackContext) {
   bus.subscribe(UrlEventNames.CreatedForUrl, {
     handler: "packages/functions/src/lambda.scrapingHandler",
     bind: [bus, OPEN_AI_KEY],
-    timeout: "15 minutes",
+    timeout: "2 minutes",
     permissions: ["ses:SendEmail"],
   });
 

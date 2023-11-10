@@ -6,15 +6,11 @@ export enum EventNames {
 }
 
 export type Scrap = {
-  title: string;
-  metaDescription: string;
   scrap: string;
 };
 
 export const Events = {
   Created: event(EventNames.Created, {
-    title: z.string(),
-    metaDescription: z.string(),
     scrap: z.string(),
     jobId: z.string().optional(),
   }),

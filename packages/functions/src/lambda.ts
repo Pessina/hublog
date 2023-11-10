@@ -9,6 +9,7 @@ import { ScrapUtils, ScrapEvents } from "@hublog/core/src/scraping";
 import { WordPress } from "@hublog/core/src/wordpress";
 import { TranslationJobsDB } from "@hublog/core/src/db";
 import { ImagesBucket } from "@hublog/core/src/s3";
+import sanitizeHtml from "sanitize-html";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   const { url, job } = JSON.parse(evt.body ?? "");
@@ -60,7 +61,7 @@ export const sitemapHandler = EventHandler(
     const { url, jobId = "" } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
     // TODO: remove slice
-    await UrlUtils.createEventsForUrls(urls.slice(0, 10), jobId);
+    await UrlUtils.createEventsForUrls(urls.slice(200, 250), jobId);
   }
 );
 
@@ -69,11 +70,7 @@ export const scrapingHandler = EventHandler(
   async (evt) => {
     const { url, jobId = "" } = evt.properties;
 
-    const {
-      content: rawHTML,
-      title,
-      metaDescription,
-    } = await ScrapUtils.fetchPageContent(url);
+    const rawHTML = await ScrapUtils.processURLContent(url);
 
     const { noImagesHTML, images } =
       await ScrapUtils.replaceImagesWithPlaceholders(rawHTML);
@@ -85,8 +82,6 @@ export const scrapingHandler = EventHandler(
     );
 
     await ScrapEvents.Created.publish({
-      title,
-      metaDescription,
       scrap: noImagesHTML,
       jobId,
     });
@@ -105,7 +100,7 @@ export const imageUploadHandler = EventHandler(
 export const translationHandler = EventHandler(
   ScrapEvents.Created,
   async (evt) => {
-    const { scrap, jobId, title, metaDescription } = evt.properties;
+    const { scrap, jobId } = evt.properties;
 
     TranslationJobsDB.updateJobReferenceCount(jobId ?? "", "add", 1);
     const job = await TranslationJobsDB.getJob(jobId ?? "");
@@ -126,14 +121,7 @@ export const translationHandler = EventHandler(
       )
     ).join(" ");
 
-    const [translatedTitle, translatedMetaDescription] = await Promise.all([
-      ContentAIUtils.translateText(title, job.language),
-      ContentAIUtils.translateText(metaDescription, job.language),
-    ]);
-
     await ContentAIEvents.CreatedForTranslation.publish({
-      title: translatedTitle,
-      metaDescription: translatedMetaDescription,
       html: translatedHTML,
       jobId,
     });
@@ -143,23 +131,29 @@ export const translationHandler = EventHandler(
 export const postWordPressHandler = EventHandler(
   ContentAIEvents.CreatedForTranslation,
   async (evt) => {
-    const { html, jobId, title, metaDescription } = evt.properties;
+    const { html, jobId } = evt.properties;
     const job = await TranslationJobsDB.getJob(jobId ?? "");
 
     const wordPress = new WordPress(job.email, job.password, job.targetBlogURL);
 
+    const wordPressArgs = JSON.parse(
+      await ContentAIUtils.getWordPressArgs(
+        ScrapUtils.removeAllTags(html),
+        job.language
+      )
+    );
+
     const htmlWithImages = await ScrapUtils.addBackImageUrls(html);
 
-    // const wordPressArgs = await WordPress.getWordPressArgs(htmlWithImages);
-
     await wordPress.setPost({
-      title: title,
-      excerpt: metaDescription,
+      title: wordPressArgs.title,
+      excerpt: wordPressArgs.metaDescription,
       meta: {
-        description: metaDescription,
+        description: wordPressArgs.metaDescription,
       },
       content: htmlWithImages,
       status: "publish",
+      slug: wordPressArgs?.slug ?? undefined,
     });
   }
 );

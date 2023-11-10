@@ -66,14 +66,4 @@ export class WordPress {
       console.error(error);
     }
   }
-
-  static async getWordPressArgs(html: string) {
-    const gptService = new ChatGptService(Config.OPEN_AI_KEY);
-
-    const wordPressArgs = await gptService.runGPTPipeline(
-      wordPressPrompts.getWordPressArgs(html)
-    );
-
-    return wordPressArgs.messages[0];
-  }
 }

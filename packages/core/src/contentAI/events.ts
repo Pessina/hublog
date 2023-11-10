@@ -7,8 +7,6 @@ export enum EventNames {
 
 export const Events = {
   CreatedForTranslation: event(EventNames.CreatedForTranslation, {
-    title: z.string(),
-    metaDescription: z.string(),
     html: z.string(),
     jobId: z.string().optional(),
   }),

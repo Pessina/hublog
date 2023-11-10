@@ -3,12 +3,14 @@ import { Prompt } from "./prompt.types";
 const cleanContent = (text: string): Prompt[] => [
   {
     id: "removeNonMainContentText",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
     - HTML: '''${text}'''
 
+    Remove from the HTML all suggestion/recommendation to other blog posts
     Remove from the HTML all the formulary
+    Remove from the HTML all the reference to the original author/blog
 
     NOTE: 
       - Do not remove any HTML tag
@@ -20,7 +22,7 @@ const cleanContent = (text: string): Prompt[] => [
 const translateText = (text: string, targetLanguage: string): Prompt[] => [
   {
     id: "translateText",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
     - HTML: '''${text}'''

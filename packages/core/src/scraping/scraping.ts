@@ -4,56 +4,41 @@ import { Readability } from "@mozilla/readability";
 import sanitizeHtml from "sanitize-html";
 import { retrieveImage } from "../s3/ImagesBucket";
 import { hashUrl } from "../utils/utils";
-import { ContentAIUtils } from "../contentAI";
-import { SES } from "../email";
 
-type PageContent = {
-  title: string;
-  metaDescription: string;
-  content: string;
-};
-
-export async function fetchPageContent(url: string): Promise<PageContent> {
+export const processURLContent = async (url: string) => {
   try {
-    const { data: html } = await axios.get(url);
-
-    const secureHTMl = sanitizeHtml(html, {
-      allowedTags: sanitizeHtml.defaults.allowedTags
-        .concat(["img", "title", "meta"])
-        .filter((t) => t !== "a" && t !== "span"),
-      allowedAttributes: {
-        img: ["src", "alt"],
-        meta: ["name", "content"],
-      },
-      exclusiveFilter: function (frame) {
-        return frame.tag === "meta" && frame.attribs.name !== "description";
-      },
-    });
-
-    const { document } = parseHTML(secureHTMl);
-
-    const title = document.querySelector("title")?.textContent || "";
-    const metaDescription =
-      document
-        .querySelector('meta[name="description"]')
-        ?.getAttribute("content") || "";
-
-    const reader = new Readability(document);
-    const article = reader.parse();
-
-    if (article && article.content) {
-      const strippedHTML = article.content.replace(/\s\s+/g, " ").trim();
-
-      return {
-        title,
-        metaDescription,
-        content: strippedHTML,
-      };
-    } else {
-      throw new Error(`Could not fetch main content from ${url}`);
-    }
+    const html = await fetchPage(url);
+    return getHTMLContent(html);
   } catch (error) {
     throw new Error(`Error fetching page content: ${error}`);
+  }
+};
+
+export const fetchPage = async (url: string) => {
+  return (await axios.get(url)).data;
+};
+
+export async function getHTMLContent(html: string): Promise<string> {
+  const secureHTMl = sanitizeHtml(html, {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "body"]),
+    allowedAttributes: {
+      img: ["src", "alt"],
+    },
+  });
+
+  const { document } = parseHTML(secureHTMl);
+
+  const reader = new Readability(document);
+  const article = reader.parse();
+
+  if (article && article.content) {
+    if (countWordsInString(article.textContent) < 1000) {
+      throw new Error("Article is too short");
+    }
+
+    return article.content.replace(/\s\s+/g, " ").trim();
+  } else {
+    throw new Error("Could not parse HTML");
   }
 }
 
@@ -115,3 +100,13 @@ export function trimAndRemoveQuotes(input: string): string {
     .replace(/^["'`]+|["'`]+$/g, "")
     .replace(/\t|\n/g, "");
 }
+
+export const countWordsInString = (input: string): number => {
+  return input.split(/\s+/).length;
+};
+
+export const removeAllTags = (html: string) => {
+  return sanitizeHtml(html, {
+    allowedTags: [],
+  });
+};

@@ -1,6 +1,9 @@
 import { Prompt } from "./prompt.types";
 
-const getWordPressArgs = (rawHTML: string): Prompt[] => [
+const getWordPressArgs = (
+  rawHTML: string,
+  targetLanguage: string
+): Prompt[] => [
   {
     id: "wordPressArgs",
     model: "gpt-3.5-turbo-1106",
@@ -8,58 +11,30 @@ const getWordPressArgs = (rawHTML: string): Prompt[] => [
     content: `
       Given the HTML content of a WordPress Travel Blog post:
       - HTML: '''${rawHTML}'''
+      - Target language: '''${targetLanguage}'''
 
-      Perform the following tasks:
-      
-      1. Suggest Tags based on the content. Options include:
-         - Specific cities or countries
-         - Types of activities
-         - Travel seasons
-         - Accommodation types
-         - Travel styles
-         - Culinary terms
-         - Travel concerns
-         - Cultural aspects
-         - Natural attractions
-         - Transportation
-
-      2. Suggest appropriate Post Categories. Options include:
-         - Destinations
-         - Trip Planning
-         - Travel Tips
-         - Adventure Travel
-         - Cultural Experiences
-         - Food and Drink
-         - Budget Travel
-         - Luxury Travel
-         - Solo Travel
-         - Family Travel
-         - Reviews
-
+      Perform the following tasks for the target language:
+     
+      1. Suggest a title for the post, following SEO best practices such as using keywords, keeping it concise, and ensuring it reflects the post content.
+      2. Suggest a metaDescription for the post, following SEO best practices such as using keywords, keeping it concise, and ensuring it reflects the post content.
       3. Suggest a Slug for the post, following SEO best practices such as using keywords, keeping it concise, and ensuring it reflects the post content.
 
       Organize the suggestions in the following JSON structure:
 
       {
-        "tags": ["string1", "string2", ...],
-        "categories": ["string1", "string2", ...],
-        "slug": "example-slug-based-on-seo-best-practices"
+        "title": "string"
+        "metaDescription": "string"
+        "slug": "string"
       }
     `,
     schema: {
       type: "object",
       properties: {
-        tags: {
-          type: "array",
-          items: {
-            type: "string",
-          },
+        title: {
+          type: "string",
         },
-        categories: {
-          type: "array",
-          items: {
-            type: "string",
-          },
+        metaDescription: {
+          type: "string",
         },
         slug: {
           type: "string",

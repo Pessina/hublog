@@ -1,9 +1,9 @@
 import {
   S3Client,
   PutObjectCommand,
-  GetObjectCommand,
   DeleteObjectCommand,
   ObjectCannedACL,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { Bucket } from "sst/node/bucket";
 
@@ -16,16 +16,30 @@ export const uploadImage = async (
   imageName: string,
   config: { isPublic?: boolean } = {}
 ): Promise<void> => {
-  const uploadParams = {
+  const headParams = {
     Bucket: Bucket.ImagesBucket.bucketName,
     Key: imageName,
-    Body: image,
-    ACL: config.isPublic ? ObjectCannedACL.public_read : undefined,
   };
+
   try {
-    await s3Client.send(new PutObjectCommand(uploadParams));
-  } catch (err) {
-    console.log("Error", err);
+    await s3Client.send(new HeadObjectCommand(headParams));
+  } catch (headErr) {
+    if ((headErr as { name: string }).name === "NotFound") {
+      const uploadParams = {
+        Bucket: Bucket.ImagesBucket.bucketName,
+        Key: imageName,
+        Body: image,
+        ACL: config.isPublic ? ObjectCannedACL.public_read : undefined,
+      };
+
+      try {
+        await s3Client.send(new PutObjectCommand(uploadParams));
+      } catch (uploadErr) {
+        console.log("Error during upload:", uploadErr);
+      }
+    } else {
+      console.log("Error during existence check:", headErr);
+    }
   }
 };
 

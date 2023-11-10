@@ -12,6 +12,7 @@ import { ScrapUtils, ScrapEvents } from "@hublog/core/src/scraping";
 import { WordPress } from "@hublog/core/src/wordpress";
 import { TranslationJobsDB } from "@hublog/core/src/db";
 import { ImagesBucket } from "@hublog/core/src/s3";
+import { SES } from "@hublog/core/src/email";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   const { url, job } = JSON.parse(evt.body ?? "");
@@ -63,7 +64,7 @@ export const sitemapHandler = EventHandler(
     const { url, jobId = "" } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
     // TODO: remove slice
-    await UrlUtils.createEventsForUrls(urls.slice(0, 3), jobId);
+    await UrlUtils.createEventsForUrls(urls.slice(0, 10), jobId);
   }
 );
 
@@ -82,18 +83,27 @@ export const scrapingHandler = EventHandler(
       await ScrapUtils.replaceImagesWithPlaceholders(rawHTML);
 
     const cleanHTML = ScrapUtils.cleanHTML(noImagesHTML);
-    await ScrapEvents.Created.publish({
-      title,
-      metaDescription,
-      scrap: cleanHTML,
-      jobId,
+
+    // Debug code
+    SES.sendEmail({
+      sender: "fs.pessina@gmail.com",
+      receiver: ["fs.pessina@gmail.com"],
+      subject: "HTML Hublog",
+      content: cleanHTML,
     });
 
-    await Promise.all(
-      images.map((i) =>
-        ImagesEvents.Upload.publish({ src: i.imgSrc, name: i.urlHash, jobId })
-      )
-    );
+    // await Promise.all(
+    //   images.map((i) =>
+    //     ImagesEvents.Upload.publish({ src: i.imgSrc, name: i.urlHash, jobId })
+    //   )
+    // );
+
+    // await ScrapEvents.Created.publish({
+    //   title,
+    //   metaDescription,
+    //   scrap: cleanHTML,
+    //   jobId,
+    // });
   }
 );
 

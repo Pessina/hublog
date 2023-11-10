@@ -84,6 +84,7 @@ export function ScrapingStack({ stack }: StackContext) {
   bus.subscribe(UrlEventNames.CreatedForUrl, {
     handler: "packages/functions/src/lambda.scrapingHandler",
     bind: [bus],
+    permissions: ["ses:SendEmail"],
   });
 
   bus.subscribe(ImagesEventNames.Upload, {

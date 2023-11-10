@@ -5,7 +5,7 @@ import { Prompt } from "./prompt.types";
 const seo = (rawHTML: string, targetLanguage: string): Prompt[] => [
   {
     id: "seo",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
     - HTML: '''${rawHTML}'''

@@ -3,7 +3,7 @@ import { Prompt } from "./prompt.types";
 const getWordPressArgs = (rawHTML: string): Prompt[] => [
   {
     id: "wordPressArgs",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
       Given the HTML content of a WordPress Travel Blog post:

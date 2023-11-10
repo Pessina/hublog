@@ -5,7 +5,7 @@ import { Prompt } from "./prompt.types";
 const translation = (rawHTML: string, targetLanguage: string): Prompt[] => [
   {
     id: "translation",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
     - HTML: '''${rawHTML}'''
@@ -22,7 +22,7 @@ const translation = (rawHTML: string, targetLanguage: string): Prompt[] => [
 const clean = (rawHTML: string): Prompt[] => [
   {
     id: "clean",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
     - HTML: '''${rawHTML}'''

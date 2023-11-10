@@ -88,22 +88,22 @@ export const scrapingHandler = EventHandler(
     SES.sendEmail({
       sender: "fs.pessina@gmail.com",
       receiver: ["fs.pessina@gmail.com"],
-      subject: "HTML Hublog",
+      subject: title,
       content: cleanHTML,
     });
 
-    // await Promise.all(
-    //   images.map((i) =>
-    //     ImagesEvents.Upload.publish({ src: i.imgSrc, name: i.urlHash, jobId })
-    //   )
-    // );
+    await Promise.all(
+      images.map((i) =>
+        ImagesEvents.Upload.publish({ src: i.imgSrc, name: i.urlHash, jobId })
+      )
+    );
 
-    // await ScrapEvents.Created.publish({
-    //   title,
-    //   metaDescription,
-    //   scrap: cleanHTML,
-    //   jobId,
-    // });
+    await ScrapEvents.Created.publish({
+      title,
+      metaDescription,
+      scrap: cleanHTML,
+      jobId,
+    });
   }
 );
 

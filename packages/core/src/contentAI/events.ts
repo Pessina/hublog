@@ -2,7 +2,7 @@ import { z } from "zod";
 import { event } from "../events/events";
 
 export enum EventNames {
-  CreatedForTranslation = "translation.createdForTranslation",
+  CreatedForTranslation = "contentAI.createdForTranslation",
 }
 
 export const Events = {

@@ -1,41 +1,41 @@
-// cSpell:disable
-
 import { Prompt } from "./prompt.types";
 
-const translation = (rawHTML: string, targetLanguage: string): Prompt[] => [
+const cleanContent = (text: string): Prompt[] => [
   {
-    id: "translation",
-    model: "gpt-3.5-turbo-1106",
+    id: "removeNonMainContentText",
+    model: "gpt-3.5-turbo-16k",
     role: "user",
     content: `
-    - HTML: '''${rawHTML}'''
-    - Target Language: '''${targetLanguage}'''
+    - HTML: '''${text}'''
 
-    Translate the HTML content within to the target language. 
+    Remove from the HTML all the formulary
 
     NOTE: 
-      - Your answer should be the translated HTML content. Nothing else
+      - Do not remove any HTML tag
+      - Your answer should be the HTML, nothing else, without quotes around the output
 `,
   },
 ];
 
-const clean = (rawHTML: string): Prompt[] => [
+const translateText = (text: string, targetLanguage: string): Prompt[] => [
   {
-    id: "clean",
-    model: "gpt-3.5-turbo-1106",
+    id: "translateText",
+    model: "gpt-3.5-turbo-16k",
     role: "user",
     content: `
-    - HTML: '''${rawHTML}'''
+    - HTML: '''${text}'''
+    - Target Language: '''${targetLanguage}'''
 
-    Make sure the HTML content is clean and ready to be published and remove sections that recommend other posts
+    Translate the HTML to the target language. 
 
     NOTE: 
-      - Your answer should be the HTML content. Nothing else
+      - Do not remove any HTMl tag
+      - Your answer should be the HTML, nothing else, without quotes around the output
 `,
   },
 ];
 
 export const contentPrompts = {
-  translation,
-  clean,
+  translateText,
+  cleanContent,
 };

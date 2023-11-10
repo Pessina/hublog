@@ -8,7 +8,7 @@ import {
   Bucket,
 } from "sst/constructs";
 import { UrlEventNames } from "@hublog/core/src/url";
-import { TranslationEventNames } from "@hublog/core/src/translation";
+import { ContentAIEventNames } from "@hublog/core/src/contentAI";
 import { ImagesEventNames } from "@hublog/core/src/images";
 import { ScrapEventNames } from "@hublog/core/src/scraping";
 import { TranslationJobsDB } from "@hublog/core/src/db";
@@ -83,7 +83,8 @@ export function ScrapingStack({ stack }: StackContext) {
 
   bus.subscribe(UrlEventNames.CreatedForUrl, {
     handler: "packages/functions/src/lambda.scrapingHandler",
-    bind: [bus],
+    bind: [bus, OPEN_AI_KEY],
+    timeout: "15 minutes",
     permissions: ["ses:SendEmail"],
   });
 
@@ -95,11 +96,11 @@ export function ScrapingStack({ stack }: StackContext) {
   bus.subscribe(ScrapEventNames.Created, {
     handler: "packages/functions/src/lambda.translationHandler",
     timeout: "60 seconds",
-    bind: [OPEN_AI_KEY, bus, table],
+    bind: [bus, OPEN_AI_KEY, table],
   });
 
-  bus.subscribe(TranslationEventNames.CreatedForTranslation, {
-    bind: [table, imageBucket, OPEN_AI_KEY],
+  bus.subscribe(ContentAIEventNames.CreatedForTranslation, {
+    bind: [table, OPEN_AI_KEY, imageBucket],
     handler: "packages/functions/src/lambda.postWordPressHandler",
   });
 

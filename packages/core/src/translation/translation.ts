@@ -1,6 +1,5 @@
 import { Config } from "sst/node/config";
 import { ChatGptService, contentPrompts } from "../gpt";
-import { createForTranslation } from "./events";
 
 export const translateHTML = async (html: string, language: string) => {
   const gptService = new ChatGptService(Config.OPEN_AI_KEY);
@@ -20,13 +19,4 @@ export const cleanHTML = async (html: string) => {
   );
 
   return cleanedContent.messages[0];
-};
-
-export const createEventForTranslation = async (
-  title: string,
-  metaDescription: string,
-  html: string,
-  jobId?: string
-) => {
-  await createForTranslation(title, metaDescription, html, jobId);
 };

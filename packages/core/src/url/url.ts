@@ -1,6 +1,6 @@
 import xml2js from "xml2js";
 import axios from "axios";
-import * as UrlEvents from "./events";
+import { Events } from "./events";
 
 const SITEMAP_REGEX = /https?:\/\/.*\/.*sitemap.*\.xml$/i;
 
@@ -47,7 +47,7 @@ export async function createEventsForUrls(urls: string[], jobId?: string) {
     try {
       new URL(url);
 
-      await UrlEvents.createForUrl(url, jobId);
+      await Events.CreatedForUrl.publish({ url, jobId });
     } catch (error) {
       console.error(`Error creating event for ${url}: ${error}`);
     }
@@ -57,7 +57,7 @@ export async function createEventsForUrls(urls: string[], jobId?: string) {
 export async function createEventForSitemap(url: string, jobId?: string) {
   try {
     new URL(url);
-    await UrlEvents.createForSitemap(url, jobId);
+    await Events.CreatedForSitemap.publish({ url, jobId });
   } catch (error) {
     console.error(`Error creating event for sitemap ${url}: ${error}`);
   }

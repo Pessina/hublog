@@ -1,7 +1,6 @@
 import axios from "axios";
 import { HTMLImageElement, parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
-import { Scrap, createForScrap } from "./events";
 import sanitizeHtml from "sanitize-html";
 import { retrieveImage } from "../s3/ImagesBucket";
 import { hashUrl } from "../utils/utils";
@@ -95,7 +94,3 @@ export function cleanHTML(html: string): string {
     throw error;
   }
 }
-
-export const createEventForScrap = async (scrap: Scrap, jobId?: string) => {
-  await createForScrap(scrap, jobId);
-};

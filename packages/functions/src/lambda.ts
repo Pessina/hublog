@@ -82,24 +82,27 @@ export const scrapingHandler = EventHandler(
       await ScrapUtils.replaceImagesWithPlaceholders(rawHTML);
 
     const cleanHTML = ScrapUtils.cleanHTML(noImagesHTML);
-    await ScrapUtils.createEventForScrap(
-      {
-        title,
-        metaDescription,
-        scrap: cleanHTML,
-      },
-      jobId
+    await ScrapEvents.Created.publish({
+      title,
+      metaDescription,
+      scrap: cleanHTML,
+      jobId,
+    });
+
+    await Promise.all(
+      images.map((i) =>
+        ImagesEvents.Upload.publish({ src: i.imgSrc, name: i.urlHash, jobId })
+      )
     );
-    await ImageUtils.createEventForImagesUpload(images, jobId);
   }
 );
 
 export const imageUploadHandler = EventHandler(
   ImagesEvents.Upload,
   async (evt) => {
-    const { urlHash, imgSrc } = evt.properties;
-    const imageBuffer = await ImageUtils.processImageSrc(imgSrc);
-    await ImagesBucket.uploadImage(imageBuffer, urlHash, { isPublic: true });
+    const { name, src } = evt.properties;
+    const imageBuffer = await ImageUtils.processImageSrc(src);
+    await ImagesBucket.uploadImage(imageBuffer, name, { isPublic: true });
   }
 );
 
@@ -111,27 +114,20 @@ export const translationHandler = EventHandler(
     TranslationJobsDB.updateJobReferenceCount(jobId ?? "", "add", 1);
     const job = await TranslationJobsDB.getJob(jobId ?? "");
 
-    // const [translatedHTML, translatedTitle, translatedMetaDescription] =
-    //   await Promise.all([
-    //     TranslationUtils.translateHTML(scrap, job.language),
-    //     TranslationUtils.translateHTML(title, job.language),
-    //     TranslationUtils.translateHTML(metaDescription, job.language),
-    //   ]);
-    // const cleanHTML = await TranslationUtils.cleanHTML(translatedHTML);
+    const [translatedHTML, translatedTitle, translatedMetaDescription] =
+      await Promise.all([
+        TranslationUtils.translateHTML(scrap, job.language),
+        TranslationUtils.translateHTML(title, job.language),
+        TranslationUtils.translateHTML(metaDescription, job.language),
+      ]);
+    const cleanHTML = await TranslationUtils.cleanHTML(translatedHTML);
 
-    // await TranslationUtils.createEventForTranslation(
-    //   translatedTitle,
-    //   translatedMetaDescription,
-    //   cleanHTML,
-    //   jobId
-    // );
-
-    await TranslationUtils.createEventForTranslation(
-      title,
-      metaDescription,
-      scrap,
-      jobId
-    );
+    await TranslationEvents.CreatedForTranslation.publish({
+      title: translatedTitle,
+      metaDescription: translatedMetaDescription,
+      html: cleanHTML,
+      jobId,
+    });
   }
 );
 

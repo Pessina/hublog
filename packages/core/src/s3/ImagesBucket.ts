@@ -30,28 +30,9 @@ export const uploadImage = async (
 };
 
 export const retrieveImage = async (imageName: string): Promise<string> => {
-  const retrieveParams = {
-    Bucket: Bucket.ImagesBucket.bucketName,
-    Key: imageName,
-  };
-
-  try {
-    const response = await s3Client.send(new GetObjectCommand(retrieveParams));
-
-    if (response?.Body) {
-      return response.Body.toString();
-    } else {
-      console.error("Empty response body");
-      return "";
-    }
-  } catch (err) {
-    if (err instanceof Error) {
-      console.error("Error:", err.message);
-    } else {
-      console.error("Unknown error:", err);
-    }
-    return "";
-  }
+  const bucketName = Bucket.ImagesBucket.bucketName;
+  const s3Url = `https://${bucketName}.s3.amazonaws.com/${imageName}`;
+  return s3Url;
 };
 
 export const deleteImage = async (imageName: string): Promise<void> => {

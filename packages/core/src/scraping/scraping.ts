@@ -78,7 +78,6 @@ export async function addBackImageUrls(html: string): Promise<string> {
     const urlHash = img.getAttribute("src");
     if (urlHash) {
       const imageUrl = await retrieveImage(urlHash);
-      console.log(imageUrl);
       img.setAttribute("src", imageUrl);
     }
   }

@@ -98,7 +98,7 @@ export function ScrapingStack({ stack }: StackContext) {
   });
 
   bus.subscribe(TranslationEventNames.CreatedForTranslation, {
-    bind: [table, imageBucket],
+    bind: [table, imageBucket, OPEN_AI_KEY],
     handler: "packages/functions/src/lambda.postWordPressHandler",
   });
 

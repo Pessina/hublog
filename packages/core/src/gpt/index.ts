@@ -1,2 +1,2 @@
 export * from "./gpt";
-export * from "./prompts/contentExtraction.prompt";
+export * from "./prompts/content.prompt";

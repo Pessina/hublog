@@ -9,16 +9,25 @@ export enum EventNames {
 export const Events = {
   CreatedForTranslation: event(EventNames.CreatedForTranslation, {
     id: z.string(),
+    title: z.string(),
+    metaDescription: z.string(),
     html: z.string(),
     jobId: z.string().optional(),
   }),
 };
 
-export async function createForTranslation(html: string, jobId?: string) {
+export async function createForTranslation(
+  title: string,
+  metaDescription: string,
+  html: string,
+  jobId?: string
+) {
   const id = crypto.randomUUID();
 
   await Events.CreatedForTranslation.publish({
     id,
+    title,
+    metaDescription,
     html,
     jobId,
   });

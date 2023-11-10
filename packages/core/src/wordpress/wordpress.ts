@@ -1,4 +1,7 @@
+import { Config } from "sst/node/config";
 import axios from "axios";
+import { ChatGptService, contentPrompts } from "../gpt";
+import { wordPressPrompts } from "../gpt/prompts/wordPress.prompt";
 
 export class WordPress {
   private USERNAME: string;
@@ -62,5 +65,15 @@ export class WordPress {
     } catch (error) {
       console.error(error);
     }
+  }
+
+  static async getWordPressArgs(html: string) {
+    const gptService = new ChatGptService(Config.OPEN_AI_KEY);
+
+    const wordPressArgs = await gptService.runGPTPipeline(
+      wordPressPrompts.getWordPressArgs(html)
+    );
+
+    return wordPressArgs.messages[0];
   }
 }

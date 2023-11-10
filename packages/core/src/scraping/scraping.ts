@@ -1,38 +1,53 @@
 import axios from "axios";
 import { HTMLImageElement, parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
-import { createForScrap } from "./events";
+import { Scrap, createForScrap } from "./events";
 import sanitizeHtml from "sanitize-html";
-import crypto from "crypto";
 import { retrieveImage } from "../s3/ImagesBucket";
+import { hashUrl } from "../utils/utils";
 
-export async function fetchPageContent(url: string): Promise<string> {
+type PageContent = {
+  title: string;
+  metaDescription: string;
+  content: string;
+};
+
+export async function fetchPageContent(url: string): Promise<PageContent> {
   try {
     const { data: html } = await axios.get(url);
-    const clean = sanitizeHtml(html, {
+
+    const { document: doc } = parseHTML(html);
+
+    const title = doc.querySelector("title")?.textContent || "";
+    const metaDescription =
+      doc.querySelector('meta[name="description"]')?.getAttribute("content") ||
+      "";
+
+    const cleanHtml = sanitizeHtml(html, {
       allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img"]),
       allowedAttributes: {
         ...sanitizeHtml.defaults.allowedAttributes,
-        a: [],
+        img: ["src", "alt"],
       },
     });
-    const { window } = parseHTML(clean);
-    const reader = new Readability(window.document);
+
+    const { document } = parseHTML(cleanHtml);
+
+    const reader = new Readability(document);
     const article = reader.parse();
 
     if (article && article.content) {
-      return article.content;
+      return {
+        title,
+        metaDescription,
+        content: article.content,
+      };
     } else {
       throw new Error(`Could not fetch main content from ${url}`);
     }
   } catch (error) {
-    console.error(`Error fetching page content: ${error}`);
-    throw error;
+    throw new Error(`Error fetching page content: ${error}`);
   }
-}
-
-function hashUrl(url: string): string {
-  return crypto.createHash("sha256").update(url).digest("hex");
 }
 
 export async function replaceImagesWithPlaceholders(html: string): Promise<{
@@ -63,6 +78,7 @@ export async function addBackImageUrls(html: string): Promise<string> {
     const urlHash = img.getAttribute("src");
     if (urlHash) {
       const imageUrl = await retrieveImage(urlHash);
+      console.log(imageUrl);
       img.setAttribute("src", imageUrl);
     }
   }
@@ -81,6 +97,6 @@ export function cleanHTML(html: string): string {
   }
 }
 
-export const createEventForScrap = async (html: string, jobId?: string) => {
-  await createForScrap(html, jobId);
+export const createEventForScrap = async (scrap: Scrap, jobId?: string) => {
+  await createForScrap(scrap, jobId);
 };

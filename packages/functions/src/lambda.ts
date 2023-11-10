@@ -71,11 +71,25 @@ export const scrapingHandler = EventHandler(
   UrlEvents.CreatedForUrl,
   async (evt) => {
     const { url, jobId = "" } = evt.properties;
-    const rawHTML = await ScrapUtils.fetchPageContent(url);
+
+    const {
+      content: rawHTML,
+      title,
+      metaDescription,
+    } = await ScrapUtils.fetchPageContent(url);
+
     const { noImagesHTML, images } =
       await ScrapUtils.replaceImagesWithPlaceholders(rawHTML);
+
     const cleanHTML = ScrapUtils.cleanHTML(noImagesHTML);
-    await ScrapUtils.createEventForScrap(cleanHTML, jobId);
+    await ScrapUtils.createEventForScrap(
+      {
+        title,
+        metaDescription,
+        scrap: cleanHTML,
+      },
+      jobId
+    );
     await ImageUtils.createEventForImagesUpload(images, jobId);
   }
 );
@@ -92,34 +106,54 @@ export const imageUploadHandler = EventHandler(
 export const translationHandler = EventHandler(
   ScrapEvents.Created,
   async (evt) => {
-    const { scrap, jobId } = evt.properties;
+    const { scrap, jobId, title, metaDescription } = evt.properties;
+
     TranslationJobsDB.updateJobReferenceCount(jobId ?? "", "add", 1);
     const job = await TranslationJobsDB.getJob(jobId ?? "");
-    const translatedHTML = await TranslationUtils.translateHTML(
+
+    // const [translatedHTML, translatedTitle, translatedMetaDescription] =
+    //   await Promise.all([
+    //     TranslationUtils.translateHTML(scrap, job.language),
+    //     TranslationUtils.translateHTML(title, job.language),
+    //     TranslationUtils.translateHTML(metaDescription, job.language),
+    //   ]);
+    // const cleanHTML = await TranslationUtils.cleanHTML(translatedHTML);
+
+    // await TranslationUtils.createEventForTranslation(
+    //   translatedTitle,
+    //   translatedMetaDescription,
+    //   cleanHTML,
+    //   jobId
+    // );
+
+    await TranslationUtils.createEventForTranslation(
+      title,
+      metaDescription,
       scrap,
-      job.language
+      jobId
     );
-    await TranslationUtils.createEventForTranslation(translatedHTML, jobId);
   }
 );
-
-// TODO: GPT SEO handler (title, meta description, ...)
 
 export const postWordPressHandler = EventHandler(
   TranslationEvents.CreatedForTranslation,
   async (evt) => {
-    const { html, jobId } = evt.properties;
+    const { html, jobId, title, metaDescription } = evt.properties;
     const job = await TranslationJobsDB.getJob(jobId ?? "");
 
     const wordPress = new WordPress(job.email, job.password, job.targetBlogURL);
 
-    // TODO: GPT WordPress handler (slug, tags...)
+    const htmlWithImages = await ScrapUtils.addBackImageUrls(html);
 
-    ScrapUtils.addBackImageUrls(html);
+    // const wordPressArgs = await WordPress.getWordPressArgs(htmlWithImages);
 
     await wordPress.setPost({
-      title: Date.now().toString(),
-      content: html,
+      title: title,
+      excerpt: metaDescription,
+      meta: {
+        description: metaDescription,
+      },
+      content: htmlWithImages,
       status: "publish",
     });
   }

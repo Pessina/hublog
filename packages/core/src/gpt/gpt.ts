@@ -27,51 +27,61 @@ export class ChatGptService {
     messages: Message[],
     schema?: PromptSchema
   ): Promise<GptResponse> {
-    const headers = {
-      Authorization: `Bearer ${this.apiKey}`,
-      "Content-Type": "application/json",
-    };
+    try {
+      const headers = {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+      };
 
-    const data = {
-      model: modelName,
-      temperature: 0,
-      messages: messages,
-      ...(schema ? { functions: [{ name: "res", parameters: schema }] } : {}),
-    };
+      const data = {
+        model: modelName,
+        temperature: 0,
+        messages: messages,
+        ...(schema ? { functions: [{ name: "res", parameters: schema }] } : {}),
+      };
 
-    const response = await axios.post(this.baseURL, data, { headers });
-    const messageContent = response?.data.choices[0].message;
+      const response = await axios.post(this.baseURL, data, { headers });
+      const messageContent = response?.data.choices[0].message;
 
-    let retMessage;
-    if (schema) {
-      retMessage = messageContent.function_call.arguments;
-    } else {
-      retMessage = messageContent.content;
+      let retMessage;
+      if (schema) {
+        retMessage = messageContent.function_call.arguments;
+      } else {
+        retMessage = messageContent.content;
+      }
+
+      return { message: retMessage };
+    } catch (error) {
+      console.error(error);
+      throw new Error(`Error fetching from GPT: ${error}`);
     }
-
-    return { message: retMessage };
   }
 
   async runGPTPipeline(prompts: Prompt[]): Promise<GptPipelineResponse> {
-    const responses: { [key: string]: string } = {};
-    const result: string[] = [];
+    try {
+      const responses: { [key: string]: string } = {};
+      const result: string[] = [];
 
-    for (const prompt of prompts) {
-      let content = prompt.content;
+      for (const prompt of prompts) {
+        let content = prompt.content;
 
-      for (const id in responses) {
-        content = content.replace("{" + id + "}", responses[id]);
+        for (const id in responses) {
+          content = content.replace("{" + id + "}", responses[id]);
+        }
+
+        const messages: Message[] = [{ role: prompt.role, content: content }];
+        const schema = prompt.schema;
+
+        const response = await this.gpt(prompt.model, messages, schema);
+
+        responses[prompt.id] = response.message;
+        result.push(response.message);
       }
 
-      const messages: Message[] = [{ role: prompt.role, content: content }];
-      const schema = prompt.schema;
-
-      const response = await this.gpt(prompt.model, messages, schema);
-
-      responses[prompt.id] = response.message;
-      result.push(response.message);
+      return { messages: result };
+    } catch (error) {
+      console.error(error);
+      throw new Error(`Error running GPT pipeline: ${error}`);
     }
-
-    return { messages: result };
   }
 }

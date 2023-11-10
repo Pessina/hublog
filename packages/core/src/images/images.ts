@@ -1,5 +1,5 @@
 import axios from "axios";
-import { createForImageUpload } from "./events";
+import { ImageUploadConfig, createForImageUpload } from "./events";
 
 export const processImageSrc = async (imgSrc: string): Promise<Buffer> => {
   let imageBuffer: Buffer;

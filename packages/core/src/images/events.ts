@@ -6,6 +6,10 @@ export enum EventNames {
   Upload = "image.upload",
 }
 
+export type ImageUploadConfig = {
+  isPublic?: boolean;
+};
+
 export const Events = {
   Upload: event(EventNames.Upload, {
     id: z.string(),

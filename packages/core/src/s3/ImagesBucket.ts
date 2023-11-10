@@ -29,15 +29,28 @@ export const uploadImage = async (
   }
 };
 
-export const retrieveImage = async (imageName: string): Promise<void> => {
+export const retrieveImage = async (imageName: string): Promise<string> => {
   const retrieveParams = {
     Bucket: Bucket.ImagesBucket.bucketName,
     Key: imageName,
   };
+
   try {
-    await s3Client.send(new GetObjectCommand(retrieveParams));
+    const response = await s3Client.send(new GetObjectCommand(retrieveParams));
+
+    if (response?.Body) {
+      return response.Body.toString();
+    } else {
+      console.error("Empty response body");
+      return "";
+    }
   } catch (err) {
-    console.log("Error", err);
+    if (err instanceof Error) {
+      console.error("Error:", err.message);
+    } else {
+      console.error("Unknown error:", err);
+    }
+    return "";
   }
 };
 

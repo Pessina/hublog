@@ -106,23 +106,23 @@ export const translationHandler = EventHandler(
 
     const headersArr = ScrapUtils.breakHTMLByHeaders(scrap);
 
-    // const translatedHTML = (
-    //   await Promise.all(
-    //     headersArr.map(async (h) => {
-    //       const cleanText = await ContentAIUtils.cleanContent(h);
-    //       const translated = await ContentAIUtils.translateText(
-    //         cleanText,
-    //         job.language
-    //       );
-    //       const improvedText = await ContentAIUtils.improveContent(translated);
+    const translatedHTML = (
+      await Promise.all(
+        headersArr.map(async (h) => {
+          const cleanText = await ContentAIUtils.cleanContent(h);
+          const translated = await ContentAIUtils.translateText(
+            cleanText,
+            job.language
+          );
+          const improvedText = await ContentAIUtils.improveContent(translated);
 
-    //       return ScrapUtils.trimAndRemoveQuotes(improvedText);
-    //     })
-    //   )
-    // ).join(" ");
+          return ScrapUtils.trimAndRemoveQuotes(improvedText);
+        })
+      )
+    ).join(" ");
 
     await ContentAIEvents.CreatedForTranslation.publish({
-      html: scrap,
+      html: translatedHTML,
       jobId,
     });
   }
@@ -138,30 +138,37 @@ export const postWordPressHandler = EventHandler(
 
     const postContent = ScrapUtils.removeAllTags(html);
 
-    const wordPressSEOArgs = await ContentAIUtils.getWordPressSEOArgs(
-      postContent,
-      job.language
-    );
+    const getTagsAndCategories = async () => {
+      const tags = await wordPress.getTags();
+      const categories = await wordPress.getCategories();
 
-    const tags = await wordPress.getTags();
-    const categories = await wordPress.getCategories();
+      const wordPressClassificationArgs =
+        await ContentAIUtils.getWordPressClassificationArgs(
+          postContent,
+          tags.map((t) => t.name),
+          categories.map((c) => c.name)
+        );
 
-    const wordPressClassificationArgs =
-      await ContentAIUtils.getWordPressClassificationArgs(
-        postContent,
-        tags.map((t) => t.name),
-        categories.map((c) => c.name)
-      );
+      const categoriesIds = categories
+        .filter((c) => wordPressClassificationArgs.categories.includes(c.name))
+        .map((c) => c.id);
 
-    const categoriesIds = categories
-      .filter((c) => wordPressClassificationArgs.categories.includes(c.name))
-      .map((c) => c.id);
+      const tagsIds = tags
+        .filter((t) => wordPressClassificationArgs.tags.includes(t.name))
+        .map((t) => t.id);
 
-    const tagsIds = tags
-      .filter((t) => wordPressClassificationArgs.tags.includes(t.name))
-      .map((t) => t.id);
+      return {
+        categoriesIds,
+        tagsIds,
+      };
+    };
 
-    const htmlWithImages = await ScrapUtils.addBackImageUrls(html);
+    const [wordPressSEOArgs, htmlWithImages, tagsAndCategories] =
+      await Promise.all([
+        ContentAIUtils.getWordPressSEOArgs(postContent, job.language),
+        ScrapUtils.addBackImageUrls(html),
+        getTagsAndCategories(),
+      ]);
 
     await wordPress.createPost({
       title: wordPressSEOArgs.title,
@@ -172,8 +179,8 @@ export const postWordPressHandler = EventHandler(
       content: htmlWithImages,
       status: "publish",
       slug: wordPressSEOArgs?.slug ?? undefined,
-      categories: categoriesIds,
-      tags: tagsIds,
+      categories: tagsAndCategories.categoriesIds,
+      tags: tagsAndCategories.tagsIds,
     });
   }
 );

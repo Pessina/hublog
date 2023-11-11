@@ -6,7 +6,7 @@ const getWordPressSEOArgs = (
 ): Prompt[] => [
   {
     id: "wordPressArgs",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
       Given the HTML content of a WordPress Travel Blog post:
@@ -33,6 +33,9 @@ const getWordPressSEOArgs = (
         - Include the target keyword
         - Keep it concise
         - Reflects the post content
+
+      NOTE: 
+        - The title, metaDescription and slug should be in the target language
 
       Organize the suggestions in the following JSON structure:
 
@@ -66,7 +69,7 @@ const getWordPressClassificationArgs = (
 ): Prompt[] => [
   {
     id: "wordPressArgs",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
       Given the HTML content of a WordPress Travel Blog post:
@@ -107,7 +110,7 @@ const getWordPressClassificationArgs = (
 const getWordPressFeaturedImage = (rawHTML: string): Prompt[] => [
   {
     id: "wordPressArgs",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
       Given the HTML content of a WordPress Travel Blog post:

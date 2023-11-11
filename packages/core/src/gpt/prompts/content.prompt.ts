@@ -3,7 +3,7 @@ import { Prompt } from "./prompt.types";
 const cleanContent = (text: string): Prompt[] => [
   {
     id: "cleanContent",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
     - HTML: '''${text}'''
@@ -14,6 +14,7 @@ const cleanContent = (text: string): Prompt[] => [
       - Reference to the original author/blog
     
     NOTE: 
+      - Do not change the language of the content
       - Do not remove any HTML tag
       - Your answer should be the HTML, nothing else, without quotes around the output
 `,
@@ -24,7 +25,7 @@ const cleanContent = (text: string): Prompt[] => [
 const improveContent = (text: string): Prompt[] => [
   {
     id: "improveContent",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
     - HTML: '''${text}'''
@@ -32,6 +33,7 @@ const improveContent = (text: string): Prompt[] => [
     Enhance the text to ensure it is engaging and easy to read, while preserving the original meaning of the content.
     
     NOTE: 
+      - Do not change the language of the content
       - Do not remove any HTML tag
       - Your answer should be the HTML, nothing else, without quotes around the output
 `,
@@ -41,7 +43,7 @@ const improveContent = (text: string): Prompt[] => [
 const translateText = (text: string, targetLanguage: string): Prompt[] => [
   {
     id: "translateText",
-    model: "gpt-3.5-turbo-16k",
+    model: "gpt-3.5-turbo-1106",
     role: "user",
     content: `
     - HTML: '''${text}'''

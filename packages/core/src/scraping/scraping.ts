@@ -2,7 +2,7 @@ import axios from "axios";
 import { HTMLImageElement, parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
 import sanitizeHtml from "sanitize-html";
-import { retrieveImage } from "../s3/ImagesBucket";
+import { retrieveImageURL } from "../s3/ImagesBucket";
 import { hashUrl } from "../utils/utils";
 
 export const processURLContent = async (url: string) => {
@@ -69,7 +69,7 @@ export async function addBackImageUrls(html: string): Promise<string> {
   for (const img of images) {
     const urlHash = img.getAttribute("src");
     if (urlHash) {
-      const imageUrl = await retrieveImage(urlHash);
+      const imageUrl = await retrieveImageURL(urlHash);
       img.setAttribute("src", imageUrl);
     }
   }

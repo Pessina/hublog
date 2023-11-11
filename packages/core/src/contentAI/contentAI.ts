@@ -65,3 +65,15 @@ export const getWordPressClassificationArgs = async (
     categories: string[];
   };
 };
+
+export const getWordPressFeaturedImage = async (html: string) => {
+  const gptService = new ChatGptService(Config.OPEN_AI_KEY);
+
+  const imgSrc = await gptService.runGPTPipeline(
+    wordPressPrompts.getWordPressFeaturedImage(html)
+  );
+
+  return JSON.parse(imgSrc.messages[0]) as {
+    src: string;
+  };
+};

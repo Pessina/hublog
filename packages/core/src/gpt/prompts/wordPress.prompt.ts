@@ -118,7 +118,7 @@ const getWordPressFeaturedImage = (rawHTML: string): Prompt[] => [
     
       1. Choose the image that most suits as featured image for WordPress
 
-      Organize the choice in the following JSON structure, where src it the image url:
+      Organize the choice in the following JSON structure, where src is the <img> src attribute:
 
       {{
         "src": "string"

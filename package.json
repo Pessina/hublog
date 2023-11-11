@@ -30,6 +30,8 @@
     "@aws-sdk/lib-dynamodb": "^3.441.0",
     "@mozilla/readability": "^0.4.4",
     "aws-sdk": "^2.1486.0",
+    "file-type": "^18.7.0",
+    "form-data": "^4.0.0",
     "linkedom": "^0.16.1",
     "sanitize-html": "^2.11.0"
   }

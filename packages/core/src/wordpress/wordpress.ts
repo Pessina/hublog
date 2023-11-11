@@ -1,4 +1,6 @@
 import axios from "axios";
+import * as fileType from "file-type";
+import FormData from "form-data";
 
 type Tag = {
   id: number;
@@ -53,7 +55,7 @@ export class WordPress {
     content: string;
     author?: number;
     excerpt?: string;
-    featured_media?: number;
+    featured_media?: number | string;
     comment_status?: string;
     ping_status?: string;
     format?: string;
@@ -91,26 +93,39 @@ export class WordPress {
     }
   }
 
-  async createMedia(mediaData: {
-    date?: string;
-    date_gmt?: string;
-    slug?: string;
-    status: string;
-    title: string;
-    author?: number;
-    comment_status?: string;
-    ping_status?: string;
-    meta?: any;
-    template?: string;
-    alt_text?: string;
-    caption?: string;
-    description?: string;
-    post?: number;
-  }) {
+  async createMedia(
+    file: Buffer,
+    fileName: string,
+    mediaData: {
+      date?: string;
+      date_gmt?: string;
+      slug?: string;
+      status: string;
+      title: string;
+      author?: number;
+      comment_status?: string;
+      ping_status?: string;
+      meta?: any;
+      template?: string;
+      alt_text?: string;
+      caption?: string;
+      description?: string;
+      post?: number;
+    }
+  ) {
     try {
+      const formData = new FormData();
+
+      const type = await fileType.fileTypeFromBuffer(file);
+
+      formData.append("file", file, `${fileName}.${type?.ext}`);
+      Object.keys(mediaData).forEach((key) => {
+        formData.append(key, (mediaData as { [key: string]: any })[key]);
+      });
+
       const res = await axios.post(
         `${this.HOSTNAME}/wp-json/wp/v2/media`,
-        mediaData,
+        formData,
         {
           auth: {
             username: this.USERNAME,
@@ -118,6 +133,7 @@ export class WordPress {
           },
         }
       );
+
       return res.data;
     } catch (error) {
       console.error(error);

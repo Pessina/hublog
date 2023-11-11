@@ -4,8 +4,11 @@ import {
   DeleteObjectCommand,
   ObjectCannedACL,
   HeadObjectCommand,
+  GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { Bucket } from "sst/node/bucket";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { Readable } from "stream";
 
 export const IMAGES_BUCKET = "ImagesBucket";
 
@@ -43,10 +46,41 @@ export const uploadImage = async (
   }
 };
 
-export const retrieveImage = async (imageName: string): Promise<string> => {
+export const retrieveImageURL = async (imageName: string): Promise<string> => {
   const bucketName = Bucket.ImagesBucket.bucketName;
   const s3Url = `https://${bucketName}.s3.amazonaws.com/${imageName}`;
   return s3Url;
+};
+
+export const retrieveImageFile = async (imageName: string): Promise<Buffer> => {
+  const getObjectParams = {
+    Bucket: Bucket.ImagesBucket.bucketName,
+    Key: imageName,
+  };
+
+  try {
+    const data = await s3Client.send(new GetObjectCommand(getObjectParams));
+    if (!data.Body) {
+      throw new Error("No body found in file");
+    }
+    const bodyContents = await streamToBuffer(data.Body as Readable);
+    return bodyContents;
+  } catch (err) {
+    console.log("Error retrieving file", err);
+    throw err;
+  }
+};
+
+// Helper function to convert a stream to a Buffer
+const streamToBuffer = (stream: Readable): Promise<Buffer> => {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on("data", (chunk) =>
+      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk)
+    );
+    stream.on("error", reject);
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+  });
 };
 
 export const deleteImage = async (imageName: string): Promise<void> => {

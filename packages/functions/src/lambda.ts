@@ -106,23 +106,23 @@ export const translationHandler = EventHandler(
 
     const headersArr = ScrapUtils.breakHTMLByHeaders(scrap);
 
-    const translatedHTML = (
-      await Promise.all(
-        headersArr.map(async (h) => {
-          const cleanText = await ContentAIUtils.cleanContent(h);
-          const translated = await ContentAIUtils.translateText(
-            cleanText,
-            job.language
-          );
-          const improvedText = await ContentAIUtils.improveContent(translated);
+    // const translatedHTML = (
+    //   await Promise.all(
+    //     headersArr.map(async (h) => {
+    //       const cleanText = await ContentAIUtils.cleanContent(h);
+    //       const translated = await ContentAIUtils.translateText(
+    //         cleanText,
+    //         job.language
+    //       );
+    //       const improvedText = await ContentAIUtils.improveContent(translated);
 
-          return ScrapUtils.trimAndRemoveQuotes(improvedText);
-        })
-      )
-    ).join(" ");
+    //       return ScrapUtils.trimAndRemoveQuotes(improvedText);
+    //     })
+    //   )
+    // ).join(" ");n
 
     await ContentAIEvents.CreatedForTranslation.publish({
-      html: translatedHTML,
+      html: scrap,
       jobId,
     });
   }
@@ -170,6 +170,16 @@ export const postWordPressHandler = EventHandler(
         getTagsAndCategories(),
       ]);
 
+    const { src } = await ContentAIUtils.getWordPressFeaturedImage(html);
+    console.log({ src });
+    const img = await ImagesBucket.retrieveImageFile(src);
+    console.log({ img });
+    const wordPressImg = await wordPress.createMedia(img, src, {
+      status: "publish",
+      title: src,
+    });
+    console.log({ wordPressImg });
+
     await wordPress.createPost({
       title: wordPressSEOArgs.title,
       excerpt: wordPressSEOArgs.metaDescription,
@@ -181,6 +191,7 @@ export const postWordPressHandler = EventHandler(
       slug: wordPressSEOArgs?.slug ?? undefined,
       categories: tagsAndCategories.categoriesIds,
       tags: tagsAndCategories.tagsIds,
+      featured_media: wordPressImg.id,
     });
   }
 );

@@ -9,7 +9,6 @@ import { ScrapUtils, ScrapEvents } from "@hublog/core/src/scraping";
 import { WordPress } from "@hublog/core/src/wordpress";
 import { TranslationJobsDB } from "@hublog/core/src/db";
 import { ImagesBucket } from "@hublog/core/src/s3";
-import sanitizeHtml from "sanitize-html";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   const { url, job } = JSON.parse(evt.body ?? "");
@@ -115,8 +114,9 @@ export const translationHandler = EventHandler(
             cleanText,
             job.language
           );
+          const improvedText = await ContentAIUtils.improveContent(translated);
 
-          return ScrapUtils.trimAndRemoveQuotes(translated);
+          return ScrapUtils.trimAndRemoveQuotes(improvedText);
         })
       )
     ).join(" ");

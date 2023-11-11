@@ -22,6 +22,16 @@ export const cleanContent = async (html: string) => {
   return cleanedContent.messages[0];
 };
 
+export const improveContent = async (html: string) => {
+  const gptService = new ChatGptService(Config.OPEN_AI_KEY);
+
+  const cleanedContent = await gptService.runGPTPipeline(
+    contentPrompts.improveContent(html)
+  );
+
+  return cleanedContent.messages[0];
+};
+
 export const getWordPressArgs = async (
   html: string,
   targetLanguage: string

@@ -7,7 +7,6 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { Bucket } from "sst/node/bucket";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Readable } from "stream";
 
 export const IMAGES_BUCKET = "ImagesBucket";
@@ -71,7 +70,6 @@ export const retrieveImageFile = async (imageName: string): Promise<Buffer> => {
   }
 };
 
-// Helper function to convert a stream to a Buffer
 const streamToBuffer = (stream: Readable): Promise<Buffer> => {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];

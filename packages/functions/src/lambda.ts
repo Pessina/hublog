@@ -106,23 +106,23 @@ export const translationHandler = EventHandler(
 
     const headersArr = ScrapUtils.breakHTMLByHeaders(scrap);
 
-    // const translatedHTML = (
-    //   await Promise.all(
-    //     headersArr.map(async (h) => {
-    //       const cleanText = await ContentAIUtils.cleanContent(h);
-    //       const translated = await ContentAIUtils.translateText(
-    //         cleanText,
-    //         job.language
-    //       );
-    //       const improvedText = await ContentAIUtils.improveContent(translated);
+    const translatedHTML = (
+      await Promise.all(
+        headersArr.map(async (h) => {
+          const cleanText = await ContentAIUtils.cleanContent(h);
+          const translated = await ContentAIUtils.translateText(
+            cleanText,
+            job.language
+          );
+          const improvedText = await ContentAIUtils.improveContent(translated);
 
-    //       return ScrapUtils.trimAndRemoveQuotes(improvedText);
-    //     })
-    //   )
-    // ).join(" ");n
+          return ScrapUtils.trimAndRemoveQuotes(improvedText);
+        })
+      )
+    ).join(" ");
 
     await ContentAIEvents.CreatedForTranslation.publish({
-      html: scrap,
+      html: translatedHTML,
       jobId,
     });
   }
@@ -171,14 +171,11 @@ export const postWordPressHandler = EventHandler(
       ]);
 
     const { src } = await ContentAIUtils.getWordPressFeaturedImage(html);
-    console.log({ src });
     const img = await ImagesBucket.retrieveImageFile(src);
-    console.log({ img });
     const wordPressImg = await wordPress.createMedia(img, src, {
       status: "publish",
       title: src,
     });
-    console.log({ wordPressImg });
 
     await wordPress.createPost({
       title: wordPressSEOArgs.title,

@@ -3,7 +3,7 @@ import { Prompt } from "./prompt.types";
 const cleanContent = (text: string): Prompt[] => [
   {
     id: "cleanContent",
-    model: "gpt-3.5-turbo-1106",
+    model: "gpt-3.5-turbo-16k",
     role: "user",
     content: `
     - HTML: '''${text}'''
@@ -24,7 +24,7 @@ const cleanContent = (text: string): Prompt[] => [
 const improveContent = (text: string): Prompt[] => [
   {
     id: "improveContent",
-    model: "gpt-3.5-turbo-1106",
+    model: "gpt-3.5-turbo-16k",
     role: "user",
     content: `
     - HTML: '''${text}'''
@@ -41,7 +41,7 @@ const improveContent = (text: string): Prompt[] => [
 const translateText = (text: string, targetLanguage: string): Prompt[] => [
   {
     id: "translateText",
-    model: "gpt-3.5-turbo-1106",
+    model: "gpt-3.5-turbo-16k",
     role: "user",
     content: `
     - HTML: '''${text}'''

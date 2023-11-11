@@ -32,15 +32,36 @@ export const improveContent = async (html: string) => {
   return cleanedContent.messages[0];
 };
 
-export const getWordPressArgs = async (
+export const getWordPressSEOArgs = async (
   html: string,
   targetLanguage: string
 ) => {
   const gptService = new ChatGptService(Config.OPEN_AI_KEY);
 
   const wordPressArgs = await gptService.runGPTPipeline(
-    wordPressPrompts.getWordPressArgs(html, targetLanguage)
+    wordPressPrompts.getWordPressSEOArgs(html, targetLanguage)
   );
 
-  return wordPressArgs.messages[0];
+  return JSON.parse(wordPressArgs.messages[0]) as {
+    title: string;
+    metaDescription: string;
+    slug: string;
+  };
+};
+
+export const getWordPressClassificationArgs = async (
+  html: string,
+  tags: string[],
+  categories: string[]
+) => {
+  const gptService = new ChatGptService(Config.OPEN_AI_KEY);
+
+  const wordPressClassificationArgs = await gptService.runGPTPipeline(
+    wordPressPrompts.getWordPressClassificationArgs(html, tags, categories)
+  );
+
+  return JSON.parse(wordPressClassificationArgs.messages[0]) as {
+    tags: string[];
+    categories: string[];
+  };
 };

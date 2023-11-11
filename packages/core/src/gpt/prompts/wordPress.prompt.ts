@@ -1,12 +1,12 @@
 import { Prompt } from "./prompt.types";
 
-const getWordPressArgs = (
+const getWordPressSEOArgs = (
   rawHTML: string,
   targetLanguage: string
 ): Prompt[] => [
   {
     id: "wordPressArgs",
-    model: "gpt-3.5-turbo-1106",
+    model: "gpt-3.5-turbo-16k",
     role: "user",
     content: `
       Given the HTML content of a WordPress Travel Blog post:
@@ -36,11 +36,11 @@ const getWordPressArgs = (
 
       Organize the suggestions in the following JSON structure:
 
-      {
+      {{
         "title": "string"
         "metaDescription": "string"
         "slug": "string"
-      }
+      }}
     `,
     schema: {
       type: "object",
@@ -59,6 +59,81 @@ const getWordPressArgs = (
   },
 ];
 
+const getWordPressClassificationArgs = (
+  rawHTML: string,
+  tags: string[],
+  categories: string[]
+): Prompt[] => [
+  {
+    id: "wordPressArgs",
+    model: "gpt-3.5-turbo-16k",
+    role: "user",
+    content: `
+      Given the HTML content of a WordPress Travel Blog post:
+      - HTML: '''${rawHTML}'''
+      - Tags: '''${tags.join(", ")}'''
+      - Categories: '''${categories.join(", ")}'''
+      
+      1. Analyze the HTML content and choose the 5 most relevant tags for the post from the provided Tags list
+      2. Analyze the HTML content and choose the 2 most relevant categories for the post from the provided Categories list
+
+      Organize the choices in the following JSON structure:
+
+      {{
+        "categories": "string[]"
+        "tags": "string[]"
+      }}
+    `,
+    schema: {
+      type: "object",
+      properties: {
+        categories: {
+          type: "array",
+          items: {
+            category: "string",
+          },
+        },
+        tags: {
+          type: "array",
+          items: {
+            tag: "string",
+          },
+        },
+      },
+    },
+  },
+];
+
+const getWordPressFeaturedImage = (rawHTML: string): Prompt[] => [
+  {
+    id: "wordPressArgs",
+    model: "gpt-3.5-turbo-16k",
+    role: "user",
+    content: `
+      Given the HTML content of a WordPress Travel Blog post:
+      - HTML: '''${rawHTML}'''
+    
+      1. Choose the image that most suits as featured image for WordPress
+
+      Organize the choice in the following JSON structure, where src it the image url:
+
+      {{
+        "src": "string"
+      }}
+    `,
+    schema: {
+      type: "object",
+      properties: {
+        src: {
+          type: "string",
+        },
+      },
+    },
+  },
+];
+
 export const wordPressPrompts = {
-  getWordPressArgs,
+  getWordPressSEOArgs,
+  getWordPressClassificationArgs,
+  getWordPressFeaturedImage,
 };

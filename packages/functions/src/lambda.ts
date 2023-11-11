@@ -109,12 +109,15 @@ export const translationHandler = EventHandler(
     const translatedHTML = (
       await Promise.all(
         headersArr.map(async (h) => {
-          const cleanText = await ContentAIUtils.cleanContent(h);
+          const cleanText = await ContentAIUtils.cleanContent(h, job.language);
           const translated = await ContentAIUtils.translateText(
             cleanText,
             job.language
           );
-          const improvedText = await ContentAIUtils.improveContent(translated);
+          const improvedText = await ContentAIUtils.improveContent(
+            translated,
+            job.language
+          );
 
           return ScrapUtils.trimAndRemoveQuotes(improvedText);
         })
@@ -163,19 +166,22 @@ export const postWordPressHandler = EventHandler(
       };
     };
 
-    const [wordPressSEOArgs, htmlWithImages, tagsAndCategories] =
+    const getFeaturedImage = async () => {
+      const { src } = await ContentAIUtils.getWordPressFeaturedImage(html);
+      const img = await ImagesBucket.retrieveImageFile(src);
+      return await wordPress.createMedia(img, src, {
+        status: "publish",
+        title: src,
+      });
+    };
+
+    const [wordPressSEOArgs, htmlWithImages, tagsAndCategories, wordPressImg] =
       await Promise.all([
         ContentAIUtils.getWordPressSEOArgs(postContent, job.language),
         ScrapUtils.addBackImageUrls(html),
         getTagsAndCategories(),
+        getFeaturedImage(),
       ]);
-
-    const { src } = await ContentAIUtils.getWordPressFeaturedImage(html);
-    const img = await ImagesBucket.retrieveImageFile(src);
-    const wordPressImg = await wordPress.createMedia(img, src, {
-      status: "publish",
-      title: src,
-    });
 
     await wordPress.createPost({
       title: wordPressSEOArgs.title,

@@ -32,7 +32,7 @@ export async function getHTMLContent(html: string): Promise<string> {
   const article = reader.parse();
 
   if (article && article.content) {
-    if (countWordsInString(article.textContent) < 1000) {
+    if (countWordsInString(article.textContent) < 500) {
       throw new Error("Article is too short");
     }
 

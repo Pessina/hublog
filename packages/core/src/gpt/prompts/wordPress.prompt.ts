@@ -6,7 +6,7 @@ const getWordPressSEOArgs = (
 ): Prompt[] => [
   {
     id: "wordPressArgs",
-    model: "gpt-3.5-turbo-1106",
+    model: "gpt-3.5-turbo-16k",
     role: "user",
     content: `
       Given the HTML content of a WordPress Travel Blog post:
@@ -69,7 +69,7 @@ const getWordPressClassificationArgs = (
 ): Prompt[] => [
   {
     id: "wordPressArgs",
-    model: "gpt-3.5-turbo-1106",
+    model: "gpt-3.5-turbo-16k",
     role: "user",
     content: `
       Given the HTML content of a WordPress Travel Blog post:
@@ -110,7 +110,7 @@ const getWordPressClassificationArgs = (
 const getWordPressFeaturedImage = (rawHTML: string): Prompt[] => [
   {
     id: "wordPressArgs",
-    model: "gpt-3.5-turbo-1106",
+    model: "gpt-3.5-turbo-16k",
     role: "user",
     content: `
       Given the HTML content of a WordPress Travel Blog post:

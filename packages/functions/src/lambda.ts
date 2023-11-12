@@ -7,9 +7,10 @@ import { UrlUtils, UrlEvents } from "@hublog/core/src/url";
 import { ImageUtils, ImagesEvents } from "@hublog/core/src/images";
 import { ScrapUtils, ScrapEvents } from "@hublog/core/src/scraping";
 import { WordPress } from "@hublog/core/src/wordpress";
-import { ScrappedDB } from "@hublog/core/src/db";
+import { ScrapsDB, ArticleTranslationsDB } from "@hublog/core/src/db";
 import { ImagesBucket } from "@hublog/core/src/s3";
 import { APIUtils } from "@hublog/core/src/api";
+import { TranslationJobsQueue } from "@hublog/core/queue";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   try {
@@ -92,7 +93,7 @@ export const scrapingHandler = EventHandler(
         )
       );
 
-      await ScrappedDB.createOrUpdateScrap({
+      await ScrapsDB.createOrUpdateScrap({
         source: url,
         html: noImagesHTML,
       });
@@ -111,39 +112,57 @@ export const imageUploadHandler = EventHandler(
   }
 );
 
-// export const translationHandler = EventHandler(
-//   ScrapEvents.Created,
-//   async (evt) => {
-//     const { scrap, jobId } = evt.properties;
+export const translationHandler = async () => {
+  const translationJobMessage = await TranslationJobsQueue.consumeMessage();
+  if (!translationJobMessage) {
+    throw new Error(`translationHandler: No scrap found`);
+  }
 
-//     const job = await TranslationJobsDB.getJob(jobId ?? "");
+  const { data: translationJob, messageId } = translationJobMessage;
 
-//     const headersArr = ScrapUtils.breakHTMLByHeaders(scrap);
+  const scrap = await ScrapsDB.getScrap(translationJob.originURL);
+  if (!scrap) {
+    throw new Error(
+      `translationHandler: No scrap found for ${translationJob.originURL}`
+    );
+  }
 
-//     const translatedHTML = (
-//       await Promise.all(
-//         headersArr.map(async (h) => {
-//           const cleanText = await ContentAIUtils.cleanContent(h, job.language);
-//           const translated = await ContentAIUtils.translateText(
-//             cleanText,
-//             job.language
-//           );
-//           const improvedText = await ContentAIUtils.improveContent(
-//             translated,
-//             job.language
-//           );
+  const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
 
-//           return ScrapUtils.trimAndRemoveQuotes(improvedText);
-//         })
-//       )
-//     ).join(" ");
+  const translatedHTML = (
+    await Promise.all(
+      headersArr.map(async (h) => {
+        const cleanText = await ContentAIUtils.cleanContent(
+          h,
+          translationJob.language
+        );
+        const translated = await ContentAIUtils.translateText(
+          cleanText,
+          translationJob.language
+        );
+        const improvedText = await ContentAIUtils.improveContent(
+          translated,
+          translationJob.language
+        );
 
-//     await ContentAIEvents.CreatedForTranslation.publish({
-//       html: translatedHTML,
-//       jobId,
-//     });
-//   }
-// );
+        return ScrapUtils.trimAndRemoveQuotes(improvedText);
+      })
+    )
+  ).join(" ");
+
+  await ArticleTranslationsDB.createOrUpdateArticleTranslation({
+    source: translationJob.originURL,
+    html: translatedHTML,
+    language: translationJob.language,
+  });
+
+  await ContentAIEvents.CreatedForTranslation.publish({
+    url: translationJob.originURL,
+    language: translationJob.language,
+  });
+
+  await TranslationJobsQueue.deleteMessage(messageId);
+};
 
 // export const postWordPressHandler = EventHandler(
 //   ContentAIEvents.CreatedForTranslation,

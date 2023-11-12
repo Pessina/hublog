@@ -1,10 +1,16 @@
-import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
+import {
+  DeleteMessageCommand,
+  ReceiveMessageCommand,
+  SQSClient,
+  SendMessageCommand,
+} from "@aws-sdk/client-sqs";
 import { Queue } from "sst/node/queue";
 import { z } from "zod";
 
 const sqs = new SQSClient();
 
 export const TRANSLATION_JOBS_QUEUE_NAME = "TranslationJobsQueue";
+const MESSAGE_GROUP_ID = "translation-jobs";
 
 type TranslationJobsQueueSchema = {
   blogURL: string;
@@ -32,22 +38,48 @@ export const validate = (data: any) => {
   return result.data;
 };
 
-export const emitEvent = async (data: TranslationJobsQueueSchema) => {
+export const emitMessage = async (data: TranslationJobsQueueSchema) => {
   const validData = validate(data);
 
   if (validData) {
     const command = new SendMessageCommand({
       QueueUrl: Queue.TranslationJobsQueue.queueUrl,
       MessageBody: JSON.stringify(validData),
+      MessageGroupId: MESSAGE_GROUP_ID,
+      MessageDeduplicationId: JSON.stringify(
+        validData.blogURL + validData.originURL + validData.language
+      ),
     });
     await sqs.send(command);
   }
 };
 
-export const consumeEvent = async (
-  message: string
-): Promise<TranslationJobsQueueSchema> => {
-  const parsedMessage = JSON.parse(message);
-  const validData = validate(parsedMessage);
-  return validData;
+export const consumeMessage = async (): Promise<{
+  data: TranslationJobsQueueSchema;
+  messageId: string;
+} | null> => {
+  const receiveMessageCommand = new ReceiveMessageCommand({
+    QueueUrl: Queue.TranslationJobsQueue.queueUrl,
+    MaxNumberOfMessages: 1,
+  });
+  const response = await sqs.send(receiveMessageCommand);
+
+  if (response.Messages && response.Messages.length > 0) {
+    const message = response.Messages[0];
+    if (message.Body && message.ReceiptHandle) {
+      const parsedMessage = JSON.parse(message.Body);
+      const validData = validate(parsedMessage);
+      return { data: validData, messageId: message.ReceiptHandle };
+    }
+  }
+
+  return null;
+};
+
+export const deleteMessage = async (messageId: string) => {
+  const deleteMessageCommand = new DeleteMessageCommand({
+    QueueUrl: Queue.TranslationJobsQueue.queueUrl,
+    ReceiptHandle: messageId,
+  });
+  await sqs.send(deleteMessageCommand);
 };

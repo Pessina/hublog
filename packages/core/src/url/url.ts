@@ -61,7 +61,7 @@ export async function createEventsForUrls(
   for (const url of urls) {
     try {
       for (const d of destinationBlogs) {
-        await TranslationJobsQueue.emitEvent({
+        await TranslationJobsQueue.emitMessage({
           ...d,
           originURL: url,
         });

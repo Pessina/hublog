@@ -45,6 +45,8 @@ export function ScrapingStack({ stack }: StackContext) {
     }
   );
 
+  const dlq = new Queue(stack, "DeadLetterQueue");
+
   const translationJobsQueue = new Queue(
     stack,
     TranslationJobsQueue.TRANSLATION_JOBS_QUEUE_NAME,
@@ -53,6 +55,10 @@ export function ScrapingStack({ stack }: StackContext) {
         queue: {
           fifo: true,
           visibilityTimeout: Duration.seconds(130),
+          deadLetterQueue: {
+            queue: dlq.cdk.queue,
+            maxReceiveCount: 2,
+          },
         },
       },
     }
@@ -65,10 +71,12 @@ export function ScrapingStack({ stack }: StackContext) {
   });
 
   new Cron(stack, "TranslationCron", {
-    schedule: "rate(2 minutes)",
+    schedule: "rate(1 minute)",
     job: {
       function: {
         handler: "packages/functions/src/lambda.translationHandler",
+        // Adjust based on OpenAI limits
+        reservedConcurrentExecutions: 1,
         bind: [
           translationJobsQueue,
           scrapsTable,

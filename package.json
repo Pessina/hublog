@@ -13,24 +13,24 @@
     "test": "sst bind vitest run"
   },
   "devDependencies": {
-    "@tsconfig/node18": "^18.2.2",
     "@types/sanitize-html": "^2.9.4",
-    "@types/xml2js": "^0.4.13",
-    "aws-cdk-lib": "2.103.1",
-    "constructs": "10.3.0",
-    "sst": "^2.32.2",
-    "typescript": "^5.2.2"
+    "@types/xml2js": "^0.4.14",
+    "sst": "^2.36.1",
+    "aws-cdk-lib": "2.101.1",
+    "constructs": "10.2.69",
+    "typescript": "^5.2.2",
+    "@tsconfig/node18": "^18.2.2"
   },
   "workspaces": [
     "packages/*"
   ],
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.441.0",
-    "@aws-sdk/client-ses": "^3.445.0",
+    "@aws-sdk/client-dynamodb": "^3.449.0",
+    "@aws-sdk/client-ses": "^3.449.0",
     "@aws-sdk/client-sqs": "^3.449.0",
-    "@aws-sdk/lib-dynamodb": "^3.441.0",
+    "@aws-sdk/lib-dynamodb": "^3.449.0",
     "@mozilla/readability": "^0.4.4",
-    "aws-sdk": "^2.1486.0",
+    "aws-sdk": "^2.1494.0",
     "file-type": "^18.7.0",
     "form-data": "^4.0.0",
     "linkedom": "^0.16.1",

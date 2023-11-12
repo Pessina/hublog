@@ -18,7 +18,6 @@ import { TranslationJobsQueue } from "@hublog/core/src/queue";
 export function ScrapingStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
 
-  // Will be renamed to Scrap DB to store all the previous scraps.
   const scrappedTable = new Table(stack, ScrappedDB.SCRAPPED_DB_TABLE, {
     fields: {
       source: "string",

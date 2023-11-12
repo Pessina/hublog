@@ -13,6 +13,5 @@ export const Events = {
   Upload: event(EventNames.Upload, {
     src: z.string(),
     name: z.string(),
-    jobId: z.string().optional(),
   }),
 };

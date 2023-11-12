@@ -45,27 +45,31 @@ export async function getSitemapUrlsFromDomain(url: string): Promise<string[]> {
   return urls;
 }
 
+/**
+ * This function creates events for each URL in the provided list.
+ * It iterates over the URLs and the destination blogs, emitting an event for each combination.
+ * Note: The events are not processed in parallel due to potential issues that could arise from concurrent processing.
+ *
+ * @param {string[]} urls - The list of URLs for which to create events.
+ * @param {DestinationBlog[]} destinationBlogs - The list of destination blogs for which to create events.
+ */
+
 export async function createEventsForUrls(
   urls: string[],
   destinationBlogs: DestinationBlog[]
 ) {
-  console.log(`Creating events for ${urls} urls`);
-  await Promise.all(
-    urls.map(async (url) => {
-      try {
-        await Promise.all(
-          destinationBlogs.map((d) =>
-            TranslationJobsQueue.emitEvent({
-              ...d,
-              originURL: url,
-            })
-          )
-        );
-
-        await Events.CreatedForUrl.publish({ url });
-      } catch (error) {
-        console.error(`Error creating event for ${url}: ${error}`);
+  for (const url of urls) {
+    try {
+      for (const d of destinationBlogs) {
+        await TranslationJobsQueue.emitEvent({
+          ...d,
+          originURL: url,
+        });
       }
-    })
-  );
+
+      await Events.CreatedForUrl.publish({ url });
+    } catch (error) {
+      console.error(`Error creating event for ${url}: ${error}`);
+    }
+  }
 }

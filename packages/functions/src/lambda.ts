@@ -71,30 +71,34 @@ export const sitemapHandler = EventHandler(
     const { url, destinations } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
     // TODO: remove slice
-    await UrlUtils.createEventsForUrls(urls.slice(0, 5), destinations);
+    await UrlUtils.createEventsForUrls(urls.slice(0, 10), destinations);
   }
 );
 
 export const scrapingHandler = EventHandler(
   UrlEvents.CreatedForUrl,
   async (evt) => {
-    const { url, jobId = "" } = evt.properties;
+    try {
+      const { url } = evt.properties;
 
-    const rawHTML = await ScrapUtils.processURLContent(url);
+      const rawHTML = await ScrapUtils.processURLContent(url);
 
-    const { noImagesHTML, images } =
-      await ScrapUtils.replaceImagesWithPlaceholders(rawHTML);
+      const { noImagesHTML, images } =
+        await ScrapUtils.replaceImagesWithPlaceholders(rawHTML);
 
-    await Promise.all(
-      images.map((i) =>
-        ImagesEvents.Upload.publish({ src: i.imgSrc, name: i.urlHash, jobId })
-      )
-    );
+      await Promise.all(
+        images.map((i) =>
+          ImagesEvents.Upload.publish({ src: i.imgSrc, name: i.urlHash })
+        )
+      );
 
-    await ScrappedDB.createOrUpdateScrap({
-      source: url,
-      html: noImagesHTML,
-    });
+      await ScrappedDB.createOrUpdateScrap({
+        source: url,
+        html: noImagesHTML,
+      });
+    } catch (error: any) {
+      console.error(`Error scraping ${evt.properties.url}: ${error}`);
+    }
   }
 );
 

@@ -113,55 +113,66 @@ export const imageUploadHandler = EventHandler(
 );
 
 export const translationHandler = async () => {
-  const translationJobMessage = await TranslationJobsQueue.consumeMessage();
-  if (!translationJobMessage) {
-    throw new Error(`translationHandler: No scrap found`);
-  }
-
-  const { data: translationJob, messageId } = translationJobMessage;
-
-  const scrap = await ScrapsDB.getScrap(translationJob.originURL);
-  if (!scrap) {
+  let translationJobMessage = await TranslationJobsQueue.consumeMessage();
+  if (!translationJobMessage)
     throw new Error(
-      `translationHandler: No scrap found for ${translationJob.originURL}`
+      `translationHandler: No message found in the queue to process`
     );
+
+  let { data: translationJob, messageId } = translationJobMessage;
+  let scrap = await ScrapsDB.getScrap(translationJob.originURL);
+
+  while (!scrap) {
+    translationJobMessage = await TranslationJobsQueue.consumeMessage();
+    if (!translationJobMessage) {
+      throw new Error(
+        `translationHandler: No message found in the queue to process`
+      );
+    }
+    translationJob = translationJobMessage.data;
+    messageId = translationJobMessage.messageId;
+    scrap = await ScrapsDB.getScrap(translationJob.originURL);
   }
 
-  const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
+  try {
+    const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
 
-  const translatedHTML = (
-    await Promise.all(
-      headersArr.map(async (h) => {
-        const cleanText = await ContentAIUtils.cleanContent(
-          h,
-          translationJob.language
-        );
-        const translated = await ContentAIUtils.translateText(
-          cleanText,
-          translationJob.language
-        );
-        const improvedText = await ContentAIUtils.improveContent(
-          translated,
-          translationJob.language
-        );
+    const translatedHTML = (
+      await Promise.all(
+        headersArr.map(async (h) => {
+          const cleanText = await ContentAIUtils.cleanContent(
+            h,
+            translationJob.language
+          );
+          const translated = await ContentAIUtils.translateText(
+            cleanText,
+            translationJob.language
+          );
+          const improvedText = await ContentAIUtils.improveContent(
+            translated,
+            translationJob.language
+          );
 
-        return ScrapUtils.trimAndRemoveQuotes(improvedText);
-      })
-    )
-  ).join(" ");
+          return ScrapUtils.trimAndRemoveQuotes(improvedText);
+        })
+      )
+    ).join(" ");
 
-  await ArticleTranslationsDB.createOrUpdateArticleTranslation({
-    source: translationJob.originURL,
-    html: translatedHTML,
-    language: translationJob.language,
-  });
+    await ArticleTranslationsDB.createOrUpdateArticleTranslation({
+      source: translationJob.originURL,
+      html: translatedHTML,
+      language: translationJob.language,
+    });
 
-  await ContentAIEvents.CreatedForTranslation.publish({
-    url: translationJob.originURL,
-    language: translationJob.language,
-  });
+    await ContentAIEvents.CreatedForTranslation.publish({
+      url: translationJob.originURL,
+      language: translationJob.language,
+    });
 
-  await TranslationJobsQueue.deleteMessage(messageId);
+    await TranslationJobsQueue.deleteMessage(messageId);
+  } catch (error: any) {
+    console.error(`Error translating ${translationJob.originURL}: ${error}`);
+  }
 };
 
 // export const postWordPressHandler = EventHandler(

@@ -53,8 +53,7 @@ export function ScrapingStack({ stack }: StackContext) {
     {
       cdk: {
         queue: {
-          fifo: true,
-          visibilityTimeout: Duration.seconds(130),
+          visibilityTimeout: Duration.minutes(1),
           deadLetterQueue: {
             queue: dlq.cdk.queue,
             maxReceiveCount: 2,
@@ -71,12 +70,13 @@ export function ScrapingStack({ stack }: StackContext) {
   });
 
   new Cron(stack, "TranslationCron", {
-    schedule: "rate(1 minute)",
+    schedule: "rate(2 minutes)",
     job: {
       function: {
         handler: "packages/functions/src/lambda.translationHandler",
         // Adjust based on OpenAI limits
-        reservedConcurrentExecutions: 1,
+        // Request quota
+        // reservedConcurrentExecutions: 1,
         bind: [
           translationJobsQueue,
           scrapsTable,

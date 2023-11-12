@@ -10,7 +10,6 @@ import { z } from "zod";
 const sqs = new SQSClient();
 
 export const TRANSLATION_JOBS_QUEUE_NAME = "TranslationJobsQueue";
-const MESSAGE_GROUP_ID = "translation-jobs";
 
 type TranslationJobsQueueSchema = {
   blogURL: string;
@@ -45,36 +44,36 @@ export const emitMessage = async (data: TranslationJobsQueueSchema) => {
     const command = new SendMessageCommand({
       QueueUrl: Queue.TranslationJobsQueue.queueUrl,
       MessageBody: JSON.stringify(validData),
-      MessageGroupId: MESSAGE_GROUP_ID,
-      MessageDeduplicationId: JSON.stringify(
-        validData.blogURL + validData.originURL + validData.language
-      ),
     });
     await sqs.send(command);
   }
 };
 
-export const consumeMessage = async (): Promise<{
+export type TranslationJobsQueueMessage = {
   data: TranslationJobsQueueSchema;
   messageId: string;
-} | null> => {
-  const receiveMessageCommand = new ReceiveMessageCommand({
-    QueueUrl: Queue.TranslationJobsQueue.queueUrl,
-    MaxNumberOfMessages: 1,
-  });
-  const response = await sqs.send(receiveMessageCommand);
-
-  if (response.Messages && response.Messages.length > 0) {
-    const message = response.Messages[0];
-    if (message.Body && message.ReceiptHandle) {
-      const parsedMessage = JSON.parse(message.Body);
-      const validData = validate(parsedMessage);
-      return { data: validData, messageId: message.ReceiptHandle };
-    }
-  }
-
-  return null;
 };
+
+export const consumeMessage =
+  async (): Promise<TranslationJobsQueueMessage | null> => {
+    const receiveMessageCommand = new ReceiveMessageCommand({
+      QueueUrl: Queue.TranslationJobsQueue.queueUrl,
+      MaxNumberOfMessages: 1,
+      WaitTimeSeconds: 5,
+    });
+    const response = await sqs.send(receiveMessageCommand);
+
+    if (response.Messages && response.Messages.length > 0) {
+      const message = response.Messages[0];
+      if (message.Body && message.ReceiptHandle) {
+        const parsedMessage = JSON.parse(message.Body);
+        const validData = validate(parsedMessage);
+        return { data: validData, messageId: message.ReceiptHandle };
+      }
+    }
+
+    return null;
+  };
 
 export const deleteMessage = async (messageId: string) => {
   const deleteMessageCommand = new DeleteMessageCommand({

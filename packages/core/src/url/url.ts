@@ -2,6 +2,9 @@ import xml2js from "xml2js";
 import axios from "axios";
 import { Events } from "./events";
 
+import { DestinationBlog } from "../api/validation";
+import { TranslationJobsQueue } from "../queue";
+
 const SITEMAP_REGEX = /https?:\/\/.*\/.*sitemap.*\.xml$/i;
 
 async function fetchSitemapUrls(url: string): Promise<string[]> {
@@ -42,23 +45,27 @@ export async function getSitemapUrlsFromDomain(url: string): Promise<string[]> {
   return urls;
 }
 
-export async function createEventsForUrls(urls: string[], jobId?: string) {
-  for (const url of urls) {
-    try {
-      new URL(url);
+export async function createEventsForUrls(
+  urls: string[],
+  destinationBlogs: DestinationBlog[]
+) {
+  console.log(`Creating events for ${urls} urls`);
+  await Promise.all(
+    urls.map(async (url) => {
+      try {
+        await Promise.all(
+          destinationBlogs.map((d) =>
+            TranslationJobsQueue.emitEvent({
+              ...d,
+              originURL: url,
+            })
+          )
+        );
 
-      await Events.CreatedForUrl.publish({ url, jobId });
-    } catch (error) {
-      console.error(`Error creating event for ${url}: ${error}`);
-    }
-  }
-}
-
-export async function createEventForSitemap(url: string, jobId?: string) {
-  try {
-    new URL(url);
-    await Events.CreatedForSitemap.publish({ url, jobId });
-  } catch (error) {
-    console.error(`Error creating event for sitemap ${url}: ${error}`);
-  }
+        await Events.CreatedForUrl.publish({ url });
+      } catch (error) {
+        console.error(`Error creating event for ${url}: ${error}`);
+      }
+    })
+  );
 }

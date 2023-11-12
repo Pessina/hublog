@@ -97,8 +97,8 @@ export function breakHTMLByHeaders(html: string): string[] {
 export function trimAndRemoveQuotes(input: string): string {
   return input
     .trim()
-    .replace(/^["'`]+|["'`]+$/g, "")
-    .replace(/\t|\n/g, "");
+    .replace(/\t|\n/g, "")
+    .replace(/^["'`]+|["'`]+$/g, "");
 }
 
 export const countWordsInString = (input: string): number => {

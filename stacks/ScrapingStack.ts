@@ -3,31 +3,36 @@ import {
   Api,
   Config,
   EventBus,
-  Table,
-  Cron,
   Bucket,
+  Queue,
+  Table,
 } from "sst/constructs";
 import { UrlEventNames } from "@hublog/core/src/url";
 import { ContentAIEventNames } from "@hublog/core/src/contentAI";
 import { ImagesEventNames } from "@hublog/core/src/images";
 import { ScrapEventNames } from "@hublog/core/src/scraping";
-import { TranslationJobsDB } from "@hublog/core/src/db";
 import { ImagesBucket } from "@hublog/core/src/s3";
+import { ScrappedDB } from "@hublog/core/src/db";
+import { TranslationJobsQueue } from "@hublog/core/src/queue";
 
 export function ScrapingStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
 
-  const table = new Table(stack, TranslationJobsDB.TRANSLATION_JOBS_TABLE, {
+  // Will be renamed to Scrap DB to store all the previous scraps.
+  const scrappedTable = new Table(stack, ScrappedDB.SCRAPPED_DB_TABLE, {
     fields: {
-      jobId: "string",
-      language: "string",
-      email: "string",
-      password: "string",
-      targetBlogURL: "string",
+      source: "string",
+      html: "string",
       createdAt: "string",
+      updatedAt: "string",
     },
-    primaryIndex: { partitionKey: "jobId" },
+    primaryIndex: { partitionKey: "source" },
   });
+
+  const translationJobsQueue = new Queue(
+    stack,
+    TranslationJobsQueue.TRANSLATION_JOBS_QUEUE_NAME
+  );
 
   const imageBucket = new Bucket(stack, ImagesBucket.IMAGES_BUCKET, {
     cors: [
@@ -36,18 +41,6 @@ export function ScrapingStack({ stack }: StackContext) {
         allowedOrigins: ["*"],
       },
     ],
-  });
-
-  // TODO: improve it by keeping a reference count to the job. If it's 0 it should be deleted
-  new Cron(stack, "DeleteOldTranslationJobs", {
-    schedule: "rate(1 day)",
-    job: {
-      function: {
-        handler: "packages/functions/src/lambda.deleteOldTranslationJobs",
-        bind: [table],
-        timeout: "360 seconds",
-      },
-    },
   });
 
   const bus = new EventBus(stack, "bus", {
@@ -59,7 +52,7 @@ export function ScrapingStack({ stack }: StackContext) {
   const api = new Api(stack, "api", {
     defaults: {
       function: {
-        bind: [bus, table],
+        bind: [bus],
       },
     },
     routes: {
@@ -71,6 +64,7 @@ export function ScrapingStack({ stack }: StackContext) {
       "POST /scrap/url-list": {
         function: {
           handler: "packages/functions/src/lambda.urlListHandler",
+          bind: [translationJobsQueue],
         },
       },
     },
@@ -78,14 +72,12 @@ export function ScrapingStack({ stack }: StackContext) {
 
   bus.subscribe(UrlEventNames.CreatedForSitemap, {
     handler: "packages/functions/src/lambda.sitemapHandler",
-    bind: [bus],
+    bind: [bus, translationJobsQueue],
   });
 
   bus.subscribe(UrlEventNames.CreatedForUrl, {
     handler: "packages/functions/src/lambda.scrapingHandler",
-    bind: [bus, OPEN_AI_KEY],
-    timeout: "2 minutes",
-    permissions: ["ses:SendEmail"],
+    bind: [bus, scrappedTable],
   });
 
   bus.subscribe(ImagesEventNames.Upload, {
@@ -93,16 +85,16 @@ export function ScrapingStack({ stack }: StackContext) {
     bind: [bus, imageBucket],
   });
 
-  bus.subscribe(ScrapEventNames.Created, {
-    handler: "packages/functions/src/lambda.translationHandler",
-    timeout: "60 seconds",
-    bind: [bus, OPEN_AI_KEY, table],
-  });
+  // bus.subscribe(ScrapEventNames.Created, {
+  //   handler: "packages/functions/src/lambda.translationHandler",
+  //   timeout: "60 seconds",
+  //   bind: [bus, OPEN_AI_KEY],
+  // });
 
-  bus.subscribe(ContentAIEventNames.CreatedForTranslation, {
-    bind: [table, OPEN_AI_KEY, imageBucket],
-    handler: "packages/functions/src/lambda.postWordPressHandler",
-  });
+  // bus.subscribe(ContentAIEventNames.CreatedForTranslation, {
+  //   bind: [OPEN_AI_KEY, imageBucket],
+  //   handler: "packages/functions/src/lambda.postWordPressHandler",
+  // });
 
   stack.addOutputs({
     ApiEndpoint: api.url,

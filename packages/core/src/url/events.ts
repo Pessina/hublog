@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { event } from "../events/events";
+import { destinationBlogsSchema } from "../api/validation";
 
 export enum EventNames {
   CreatedForSitemap = "url.createdForSitemap",
@@ -9,10 +10,9 @@ export enum EventNames {
 export const Events = {
   CreatedForSitemap: event(EventNames.CreatedForSitemap, {
     url: z.string(),
-    jobId: z.string().optional(),
+    destinations: destinationBlogsSchema,
   }),
   CreatedForUrl: event(EventNames.CreatedForUrl, {
     url: z.string(),
-    jobId: z.string().optional(),
   }),
 };

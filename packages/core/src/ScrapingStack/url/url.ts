@@ -1,7 +1,6 @@
 import xml2js from "xml2js";
 import axios from "axios";
 import { Events } from "./events";
-
 import { DestinationBlog } from "../api/validation";
 import { TranslationJobsQueue } from "../queue";
 

@@ -1,6 +1,6 @@
 import { Config } from "sst/node/config";
-import { ChatGptService, contentPrompts } from "../gpt";
-import { wordPressPrompts } from "../gpt/prompts/wordPress.prompt";
+import { ChatGptService, contentPrompts } from "../../utils/GPT";
+import { wordPressPrompts } from "../../utils/GPT/prompts/wordPress.prompt";
 import { removeAllTags } from "../scraping/scraping";
 
 export const translateText = async (text: string, language: string) => {

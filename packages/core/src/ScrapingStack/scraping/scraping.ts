@@ -2,8 +2,8 @@ import axios from "axios";
 import { HTMLImageElement, parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
 import sanitizeHtml from "sanitize-html";
+import { hashUrl } from "../../utils/utils";
 import { retrieveImageURL } from "../s3/ImagesBucket";
-import { hashUrl } from "../utils/utils";
 
 export const processURLContent = async (url: string) => {
   try {

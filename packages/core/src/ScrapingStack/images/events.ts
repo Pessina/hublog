@@ -1,5 +1,5 @@
-import { event } from "../events/events";
 import { z } from "zod";
+import { event } from "../events/events";
 
 export enum EventNames {
   Upload = "image.upload",

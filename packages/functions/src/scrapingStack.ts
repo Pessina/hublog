@@ -1,16 +1,25 @@
 import { ApiHandler } from "sst/node/api";
 import crypto from "crypto";
 
-import { ContentAIUtils, ContentAIEvents } from "@hublog/core/src/contentAI";
+import {
+  ContentAIUtils,
+  ContentAIEvents,
+} from "@hublog/core/src/ScrapingStack/contentAI";
 import { EventHandler } from "sst/node/event-bus";
-import { UrlUtils, UrlEvents } from "@hublog/core/src/url";
-import { ImageUtils, ImagesEvents } from "@hublog/core/src/images";
-import { ScrapUtils, ScrapEvents } from "@hublog/core/src/scraping";
-import { WordPress } from "@hublog/core/src/wordpress";
-import { ScrapsDB, ArticleTranslationsDB } from "@hublog/core/src/db";
-import { ImagesBucket } from "@hublog/core/src/s3";
-import { APIUtils } from "@hublog/core/src/api";
-import { TranslationJobsQueue } from "@hublog/core/queue";
+import { UrlUtils, UrlEvents } from "@hublog/core/src/ScrapingStack/url";
+import {
+  ImageUtils,
+  ImagesEvents,
+} from "@hublog/core/src/ScrapingStack/images";
+import { ScrapUtils } from "@hublog/core/src/ScrapingStack/scraping";
+import { WordPress } from "@hublog/core/src/ScrapingStack/wordpress";
+import {
+  ScrapsDB,
+  ArticleTranslationsDB,
+} from "@hublog/core/src/ScrapingStack/db";
+import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
+import { APIUtils } from "@hublog/core/src/ScrapingStack/api";
+import { TranslationJobsQueue } from "@hublog/core/src/ScrapingStack/queue";
 import { getFirstImgSrc } from "@hublog/core/utils/utils";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {

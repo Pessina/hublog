@@ -8,13 +8,16 @@ import {
   Table,
   Cron,
 } from "sst/constructs";
-import { UrlEventNames } from "@hublog/core/src/url";
-import { ContentAIEventNames } from "@hublog/core/src/contentAI";
-import { ImagesEventNames } from "@hublog/core/src/images";
-import { ScrapEventNames } from "@hublog/core/src/scraping";
-import { ImagesBucket } from "@hublog/core/src/s3";
-import { ScrapsDB, ArticleTranslationsDB } from "@hublog/core/src/db";
-import { TranslationJobsQueue } from "@hublog/core/src/queue";
+import { UrlEventNames } from "@hublog/core/src/ScrapingStack/url";
+import { ContentAIEventNames } from "@hublog/core/src/ScrapingStack/contentAI";
+import { ImagesEventNames } from "@hublog/core/src/ScrapingStack/images";
+import { ScrapEventNames } from "@hublog/core/src/ScrapingStack/scraping";
+import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
+import {
+  ScrapsDB,
+  ArticleTranslationsDB,
+} from "@hublog/core/src/ScrapingStack/db";
+import { TranslationJobsQueue } from "@hublog/core/src/ScrapingStack/queue";
 import { Duration } from "aws-cdk-lib";
 
 export function ScrapingStack({ stack }: StackContext) {
@@ -76,7 +79,7 @@ export function ScrapingStack({ stack }: StackContext) {
     schedule: "rate(5 minutes)",
     job: {
       function: {
-        handler: "packages/functions/src/lambda.translationHandler",
+        handler: "packages/functions/src/scrapingStack.translationHandler",
         // Adjust based on OpenAI limits
         // Request quota
         // reservedConcurrentExecutions: 1,
@@ -109,12 +112,12 @@ export function ScrapingStack({ stack }: StackContext) {
     routes: {
       "POST /scrap/sitemap": {
         function: {
-          handler: "packages/functions/src/lambda.sitemapUrlHandler",
+          handler: "packages/functions/src/scrapingStack.sitemapUrlHandler",
         },
       },
       "POST /scrap/url-list": {
         function: {
-          handler: "packages/functions/src/lambda.urlListHandler",
+          handler: "packages/functions/src/scrapingStack.urlListHandler",
           bind: [translationJobsQueue],
         },
       },
@@ -122,22 +125,22 @@ export function ScrapingStack({ stack }: StackContext) {
   });
 
   bus.subscribe(UrlEventNames.CreatedForSitemap, {
-    handler: "packages/functions/src/lambda.sitemapHandler",
+    handler: "packages/functions/src/scrapingStack.sitemapHandler",
     bind: [bus, translationJobsQueue],
   });
 
   bus.subscribe(UrlEventNames.CreatedForUrl, {
-    handler: "packages/functions/src/lambda.scrapingHandler",
+    handler: "packages/functions/src/scrapingStack.scrapingHandler",
     bind: [bus, scrapsTable],
   });
 
   bus.subscribe(ImagesEventNames.Upload, {
-    handler: "packages/functions/src/lambda.imageUploadHandler",
+    handler: "packages/functions/src/scrapingStack.imageUploadHandler",
     bind: [bus, imageBucket],
   });
 
   bus.subscribe(ScrapEventNames.Created, {
-    handler: "packages/functions/src/lambda.translationHandler",
+    handler: "packages/functions/src/scrapingStack.translationHandler",
     timeout: "5 minutes",
     bind: [
       OPEN_AI_KEY,
@@ -149,7 +152,7 @@ export function ScrapingStack({ stack }: StackContext) {
 
   bus.subscribe(ContentAIEventNames.CreatedForTranslation, {
     bind: [OPEN_AI_KEY, imageBucket, articleTranslationsTable],
-    handler: "packages/functions/src/lambda.postWordPressHandler",
+    handler: "packages/functions/src/scrapingStack.postWordPressHandler",
   });
 
   stack.addOutputs({

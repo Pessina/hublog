@@ -15,6 +15,9 @@ const dynamoDB = DynamoDBDocumentClient.from(client);
 
 interface ArticleTranslationInput {
   source: string;
+  title: string;
+  metaDescription: string;
+  slug: string;
   html: string;
   language: string;
 }
@@ -38,8 +41,12 @@ export const createOrUpdateArticleTranslation = async (
         source: articleTranslation.source,
         language: articleTranslation.language,
       },
-      UpdateExpression: "set html = :h, updatedAt = :u",
+      UpdateExpression:
+        "set title = :t, metaDescription = :m, slug = :s, html = :h, updatedAt = :u",
       ExpressionAttributeValues: {
+        ":t": articleTranslation.title,
+        ":m": articleTranslation.metaDescription,
+        ":s": articleTranslation.slug,
         ":h": articleTranslation.html,
         ":u": new Date().toISOString(),
       },

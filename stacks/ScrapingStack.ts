@@ -36,6 +36,9 @@ export function ScrapingStack({ stack }: StackContext) {
     {
       fields: {
         source: "string",
+        title: "string",
+        metaDescription: "string",
+        slug: "string",
         html: "string",
         language: "string",
         createdAt: "string",
@@ -53,7 +56,7 @@ export function ScrapingStack({ stack }: StackContext) {
     {
       cdk: {
         queue: {
-          visibilityTimeout: Duration.minutes(1),
+          visibilityTimeout: Duration.minutes(4),
           deadLetterQueue: {
             queue: dlq.cdk.queue,
             maxReceiveCount: 2,
@@ -135,7 +138,7 @@ export function ScrapingStack({ stack }: StackContext) {
 
   bus.subscribe(ScrapEventNames.Created, {
     handler: "packages/functions/src/lambda.translationHandler",
-    timeout: "120 seconds",
+    timeout: "4 minutes",
     bind: [
       OPEN_AI_KEY,
       articleTranslationsTable,
@@ -144,10 +147,10 @@ export function ScrapingStack({ stack }: StackContext) {
     ],
   });
 
-  // bus.subscribe(ContentAIEventNames.CreatedForTranslation, {
-  //   bind: [OPEN_AI_KEY, imageBucket],
-  //   handler: "packages/functions/src/lambda.postWordPressHandler",
-  // });
+  bus.subscribe(ContentAIEventNames.CreatedForTranslation, {
+    bind: [OPEN_AI_KEY, imageBucket, articleTranslationsTable],
+    handler: "packages/functions/src/lambda.postWordPressHandler",
+  });
 
   stack.addOutputs({
     ApiEndpoint: api.url,

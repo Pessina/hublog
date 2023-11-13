@@ -11,6 +11,7 @@ import { ScrapsDB, ArticleTranslationsDB } from "@hublog/core/src/db";
 import { ImagesBucket } from "@hublog/core/src/s3";
 import { APIUtils } from "@hublog/core/src/api";
 import { TranslationJobsQueue } from "@hublog/core/queue";
+import { getFirstImgSrc } from "@hublog/core/utils/utils";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   try {
@@ -158,8 +159,16 @@ export const translationHandler = async () => {
       )
     ).join(" ");
 
+    const SEOArgs = await ContentAIUtils.getSEOArgs(
+      translatedHTML,
+      translationJob.language
+    );
+
     await ArticleTranslationsDB.createOrUpdateArticleTranslation({
       source: translationJob.originURL,
+      title: SEOArgs.title,
+      metaDescription: SEOArgs.metaDescription,
+      slug: SEOArgs.slug,
       html: translatedHTML,
       language: translationJob.language,
     });
@@ -167,6 +176,9 @@ export const translationHandler = async () => {
     await ContentAIEvents.CreatedForTranslation.publish({
       url: translationJob.originURL,
       language: translationJob.language,
+      email: translationJob.email,
+      password: translationJob.password,
+      blogURL: translationJob.blogURL,
     });
 
     await TranslationJobsQueue.deleteMessage(messageId);
@@ -175,70 +187,77 @@ export const translationHandler = async () => {
   }
 };
 
-// export const postWordPressHandler = EventHandler(
-//   ContentAIEvents.CreatedForTranslation,
-//   async (evt) => {
-//     const { html, jobId } = evt.properties;
-//     const job = await TranslationJobsDB.getJob(jobId ?? "");
+export const postWordPressHandler = EventHandler(
+  ContentAIEvents.CreatedForTranslation,
+  async (evt) => {
+    const { url, language, email, password, blogURL } = evt.properties;
+    const articleTranslated = await ArticleTranslationsDB.getArticleTranslation(
+      url,
+      language
+    );
 
-//     const wordPress = new WordPress(job.email, job.password, job.targetBlogURL);
+    if (!articleTranslated) {
+      throw new Error(
+        `postWordPressHandler: No article found for ${url} in ${language}`
+      );
+    }
 
-//     const postContent = ScrapUtils.removeAllTags(html);
+    const wordPress = new WordPress(email, password, blogURL);
 
-//     const getTagsAndCategories = async () => {
-//       const tags = await wordPress.getTags();
-//       const categories = await wordPress.getCategories();
+    const getTagsAndCategories = async () => {
+      const tags = await wordPress.getTags();
+      const categories = await wordPress.getCategories();
 
-//       const wordPressClassificationArgs =
-//         await ContentAIUtils.getWordPressClassificationArgs(
-//           postContent,
-//           tags.map((t) => t.name),
-//           categories.map((c) => c.name)
-//         );
+      const wordPressClassificationArgs =
+        await ContentAIUtils.getWordPressClassificationArgs(
+          articleTranslated.html,
+          tags.map((t) => t.name),
+          categories.map((c) => c.name)
+        );
 
-//       const categoriesIds = categories
-//         .filter((c) => wordPressClassificationArgs.categories.includes(c.name))
-//         .map((c) => c.id);
+      const categoriesIds = categories
+        .filter((c) => wordPressClassificationArgs.categories.includes(c.name))
+        .map((c) => c.id);
 
-//       const tagsIds = tags
-//         .filter((t) => wordPressClassificationArgs.tags.includes(t.name))
-//         .map((t) => t.id);
+      const tagsIds = tags
+        .filter((t) => wordPressClassificationArgs.tags.includes(t.name))
+        .map((t) => t.id);
 
-//       return {
-//         categoriesIds,
-//         tagsIds,
-//       };
-//     };
+      return {
+        categoriesIds,
+        tagsIds,
+      };
+    };
 
-//     const getFeaturedImage = async () => {
-//       const { src } = await ContentAIUtils.getWordPressFeaturedImage(html);
-//       const img = await ImagesBucket.retrieveImageFile(src);
-//       return await wordPress.createMedia(img, src, {
-//         status: "publish",
-//         title: src,
-//       });
-//     };
+    const getFeaturedImage = async () => {
+      const src = getFirstImgSrc(articleTranslated.html);
+      const img = await ImagesBucket.retrieveImageFile(src);
+      return await wordPress.createMedia(img, src, {
+        status: "publish",
+        title: src,
+      });
+    };
 
-//     const [wordPressSEOArgs, htmlWithImages, tagsAndCategories, wordPressImg] =
-//       await Promise.all([
-//         ContentAIUtils.getWordPressSEOArgs(postContent, job.language),
-//         ScrapUtils.addBackImageUrls(html),
-//         getTagsAndCategories(),
-//         getFeaturedImage(),
-//       ]);
+    const [htmlWithImages, tagsAndCategories, wordPressImg] = await Promise.all(
+      [
+        ScrapUtils.addBackImageUrls(articleTranslated.html),
+        getTagsAndCategories(),
+        getFeaturedImage(),
+      ]
+    );
 
-//     await wordPress.createPost({
-//       title: wordPressSEOArgs.title,
-//       excerpt: wordPressSEOArgs.metaDescription,
-//       meta: {
-//         description: wordPressSEOArgs.metaDescription,
-//       },
-//       content: htmlWithImages,
-//       status: "publish",
-//       slug: wordPressSEOArgs?.slug ?? undefined,
-//       categories: tagsAndCategories.categoriesIds,
-//       tags: tagsAndCategories.tagsIds,
-//       featured_media: wordPressImg.id,
-//     });
-//   }
-// );
+    await wordPress.createPost({
+      title: articleTranslated.title,
+      excerpt: articleTranslated.metaDescription,
+      meta: {
+        description: articleTranslated.metaDescription,
+      },
+      content: htmlWithImages,
+      status: "publish",
+      slug: articleTranslated.slug,
+      categories: tagsAndCategories.categoriesIds,
+      tags: tagsAndCategories.tagsIds,
+      featured_media: wordPressImg.id,
+    });
+  }
+);

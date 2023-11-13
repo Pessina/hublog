@@ -56,7 +56,7 @@ export function ScrapingStack({ stack }: StackContext) {
     {
       cdk: {
         queue: {
-          visibilityTimeout: Duration.minutes(4),
+          visibilityTimeout: Duration.minutes(5),
           deadLetterQueue: {
             queue: dlq.cdk.queue,
             maxReceiveCount: 2,
@@ -73,7 +73,7 @@ export function ScrapingStack({ stack }: StackContext) {
   });
 
   new Cron(stack, "TranslationCron", {
-    schedule: "rate(2 minutes)",
+    schedule: "rate(5 minutes)",
     job: {
       function: {
         handler: "packages/functions/src/lambda.translationHandler",
@@ -138,7 +138,7 @@ export function ScrapingStack({ stack }: StackContext) {
 
   bus.subscribe(ScrapEventNames.Created, {
     handler: "packages/functions/src/lambda.translationHandler",
-    timeout: "4 minutes",
+    timeout: "5 minutes",
     bind: [
       OPEN_AI_KEY,
       articleTranslationsTable,

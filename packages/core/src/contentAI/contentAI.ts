@@ -13,21 +13,24 @@ export const translateText = async (text: string, language: string) => {
   return translatedContent.messages[0];
 };
 
-export const cleanContent = async (html: string, targetLanguage: string) => {
+export const cleanContent = async (html: string) => {
   const gptService = new ChatGptService(Config.OPEN_AI_KEY);
 
   const cleanedContent = await gptService.runGPTPipeline(
-    contentPrompts.cleanContent(html, targetLanguage)
+    contentPrompts.cleanContent(html)
   );
 
   return cleanedContent.messages[0];
 };
 
-export const improveContent = async (html: string, targetLanguage: string) => {
+export const improveReadability = async (
+  html: string,
+  targetLanguage: string
+) => {
   const gptService = new ChatGptService(Config.OPEN_AI_KEY);
 
   const cleanedContent = await gptService.runGPTPipeline(
-    contentPrompts.improveContent(html, targetLanguage)
+    contentPrompts.improveReadability(html, targetLanguage)
   );
 
   return cleanedContent.messages[0];

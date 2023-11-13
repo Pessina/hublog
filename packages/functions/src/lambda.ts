@@ -73,7 +73,7 @@ export const sitemapHandler = EventHandler(
     const { url, destinations } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
     // TODO: remove slice
-    await UrlUtils.createEventsForUrls(urls.slice(0, 10), destinations);
+    await UrlUtils.createEventsForUrls(urls.slice(0, 3), destinations);
   }
 );
 
@@ -141,15 +141,12 @@ export const translationHandler = async () => {
     const translatedHTML = (
       await Promise.all(
         headersArr.map(async (h) => {
-          const cleanText = await ContentAIUtils.cleanContent(
-            h,
-            translationJob.language
-          );
+          const cleanText = await ContentAIUtils.cleanContent(h);
           const translated = await ContentAIUtils.translateText(
             cleanText,
             translationJob.language
           );
-          const improvedText = await ContentAIUtils.improveContent(
+          const improvedText = await ContentAIUtils.improveReadability(
             translated,
             translationJob.language
           );

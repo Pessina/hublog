@@ -31,7 +31,6 @@ export function OpenAIStack({ stack }: StackContext) {
       interval: Duration.seconds(1),
       backoffRate: 2.0,
       maxAttempts: 5,
-      errors: ["RateLimitExceeded"],
     }),
     timeout: Duration.minutes(5),
   });

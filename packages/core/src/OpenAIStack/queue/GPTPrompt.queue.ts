@@ -43,9 +43,11 @@ export async function consume() {
   if (response.Messages) {
     const message = response.Messages[0];
     const receiptHandle = message.ReceiptHandle;
-    const messageBody = message.Body ? JSON.parse(message.Body) : {};
-    const messageData = validate(messageBody, gptPromptQueueMessageSchema);
-    return { receiptHandle, messageData };
+    if (receiptHandle) {
+      const messageBody = message.Body ? JSON.parse(message.Body) : {};
+      const messageData = validate(messageBody, gptPromptQueueMessageSchema);
+      return { receiptHandle, messageData };
+    }
   }
 }
 

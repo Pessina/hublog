@@ -1,5 +1,6 @@
 import { ApiHandler } from "sst/node/api";
 import core from "@hublog/core/src/OpenAIStack";
+import Utils from "@hublog/core/src/utils";
 import OpenAI from "openai";
 import { Config } from "sst/node/config";
 import { SQSEvent } from "aws-lambda";
@@ -27,30 +28,37 @@ export const gptAPIHandler = ApiHandler(async (evt) => {
 });
 
 export const gptQueueConsumer = async (evt: SQSEvent) => {
-  const exponentialRetry = new core.DB.APIRetryDB();
-  const openAI = new OpenAI({ apiKey: Config.OPEN_AI_KEY });
-
   const message = core.Validation.validate(
     evt.Records[0],
     core.Queue.GPTPrompt.gptPromptQueueMessageSchema
   );
-  const data = JSON.parse(message.body);
+
+  Utils.StateMachine.startStateMachine(
+    process.env.STATE_MACHINE ?? "",
+    message.body
+  );
+};
+
+export const gptPromptHandler = async (evt: any) => {
+  const message = core.Validation.validate(
+    evt,
+    core.Validation.chatGptRequestSchema
+  );
+
+  const exponentialRetry = new core.DB.APIRetryDB();
+  const openAI = new OpenAI({ apiKey: Config.OPEN_AI_KEY });
 
   try {
     const res = await openAI.chat.completions.create({
-      model: data.model,
-      messages: data.messages,
+      model: message.model,
+      messages: message.messages,
     });
 
     console.log(res);
 
-    exponentialRetry.resetRetryCount(data.model);
+    exponentialRetry.resetRetryCount(message.model);
   } catch (error: any) {
-    const item = await exponentialRetry.get(data.model);
-    if (item && item.retryCount >= 5) {
-      core.Queue.GPTPrompt.remove(message.receiptHandle);
-    }
-    exponentialRetry.incrementRetryCount(data.model);
+    exponentialRetry.incrementRetryCount(message.model);
 
     throw new Error(
       `Failed to create chat completions with OpenAI: ${error.message}`

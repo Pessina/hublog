@@ -1,7 +1,6 @@
 import {
   StackContext,
   Api,
-  Config,
   EventBus,
   Bucket,
   Queue,

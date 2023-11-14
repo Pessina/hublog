@@ -1,7 +1,13 @@
 import { z } from "zod";
 
 export const chatGptRequestSchema = z.object({
-  model: z.string(),
+  model: z.union([
+    z.string(),
+    z.literal("gpt-4"),
+    z.literal("gpt-4-32k"),
+    z.literal("gpt-3.5-turbo"),
+    z.literal("gpt-3.5-turbo-16k"),
+  ]),
   messages: z.array(
     z.object({
       role: z.enum(["system", "user", "assistant"]),
@@ -16,7 +22,6 @@ export const chatGptRequestSchema = z.object({
     })
     .optional(),
   seed: z.number().optional(),
-  stream: z.boolean().optional(),
   temperature: z.number().optional(),
   top_p: z.number().optional(),
   tools: z.array(z.string()).optional(),
@@ -35,11 +40,15 @@ export const chatGptRequestSchema = z.object({
     .optional(),
 });
 
-export function validateChatGptRequest(request: any) {
-  const result = chatGptRequestSchema.safeParse(request);
+export function validate<T>(obj: any, schema: z.ZodSchema<T>): T {
+  const result = schema.safeParse(obj);
 
   if (!result.success) {
-    throw new Error("Invalid request");
+    throw new Error(
+      `Invalid request. Schema: ${JSON.stringify(
+        schema
+      )} Error: ${JSON.stringify(result.error)}`
+    );
   }
 
   return result.data;

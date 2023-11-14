@@ -1,10 +1,10 @@
-import { Api, Table, Queue, Function } from "sst/constructs";
+import { Api, Table, Queue, Config } from "sst/constructs";
 import { StackContext } from "sst/constructs";
 
 export function OpenAIStack({ stack }: StackContext) {
-  const queue = new Queue(stack, "GPTPromptQueue");
+  const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
 
-  const table = new Table(stack, "ExponentialRetryStatus", {
+  const APIRetryTable = new Table(stack, "APIRetry", {
     fields: {
       model: "string",
       retryCount: "number",
@@ -13,12 +13,21 @@ export function OpenAIStack({ stack }: StackContext) {
     primaryIndex: { partitionKey: "model" },
   });
 
+  const gptPromptQueue = new Queue(stack, "GPTPrompt", {
+    consumer: {
+      function: {
+        handler: "packages/functions/src/openAIStack.gptQueueConsumer",
+        bind: [APIRetryTable, OPEN_AI_KEY],
+      },
+    },
+  });
+
   const api = new Api(stack, "Api", {
     routes: {
       "POST /chatgpt": {
         function: {
           handler: "packages/functions/src/openAIStack.gptAPIHandler",
-          bind: [queue],
+          bind: [gptPromptQueue],
         },
       },
     },

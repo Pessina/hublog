@@ -4,7 +4,7 @@ import { wordPressPrompts } from "../../utils/GPT/prompts/wordPress.prompt";
 import { removeAllTags } from "../scraping/scraping";
 
 export const translateText = async (text: string, language: string) => {
-  const gptService = new ChatGptService(Config.OPEN_AI_KEY);
+  const gptService = new ChatGptService("test");
 
   const translatedContent = await gptService.runGPTPipeline(
     contentPrompts.translateText(text, language)
@@ -14,7 +14,7 @@ export const translateText = async (text: string, language: string) => {
 };
 
 export const cleanContent = async (html: string) => {
-  const gptService = new ChatGptService(Config.OPEN_AI_KEY);
+  const gptService = new ChatGptService("test");
 
   const cleanedContent = await gptService.runGPTPipeline(
     contentPrompts.cleanContent(html)
@@ -27,7 +27,7 @@ export const improveReadability = async (
   html: string,
   targetLanguage: string
 ) => {
-  const gptService = new ChatGptService(Config.OPEN_AI_KEY);
+  const gptService = new ChatGptService("test");
 
   const cleanedContent = await gptService.runGPTPipeline(
     contentPrompts.improveReadability(html, targetLanguage)
@@ -37,7 +37,7 @@ export const improveReadability = async (
 };
 
 export const getSEOArgs = async (html: string, targetLanguage: string) => {
-  const gptService = new ChatGptService(Config.OPEN_AI_KEY);
+  const gptService = new ChatGptService("test");
 
   const SEOArgs = await gptService.runGPTPipeline(
     contentPrompts.getSEOArgs(removeAllTags(html), targetLanguage)
@@ -55,7 +55,7 @@ export const getWordPressClassificationArgs = async (
   tags: string[],
   categories: string[]
 ) => {
-  const gptService = new ChatGptService(Config.OPEN_AI_KEY);
+  const gptService = new ChatGptService("test");
 
   const wordPressClassificationArgs = await gptService.runGPTPipeline(
     wordPressPrompts.getWordPressClassificationArgs(

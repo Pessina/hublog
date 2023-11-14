@@ -1,1 +1,1 @@
-export * as GPTPromptQueue from "./GPTPromptQueue";
+export * as GPTPrompt from "./GPTPrompt.queue";

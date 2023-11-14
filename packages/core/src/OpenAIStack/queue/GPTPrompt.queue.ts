@@ -5,17 +5,29 @@ import {
   DeleteMessageCommand,
 } from "@aws-sdk/client-sqs";
 
-import { validateChatGptRequest } from "../api/validation";
-import { ChatGptRequest } from "../types";
 import { Queue } from "sst/node/queue";
+import { z } from "zod";
+import { chatGptRequestSchema, validate } from "../validation";
 
 const client = new SQSClient();
 
-export async function emit(request: ChatGptRequest) {
-  validateChatGptRequest(request);
+export const gptPromptQueueMessageSchema = z.object({
+  messageId: z.string(),
+  receiptHandle: z.string(),
+  body: z.string(),
+  attributes: z.record(z.unknown()),
+  messageAttributes: z.record(z.unknown()),
+  md5OfBody: z.string(),
+  eventSource: z.string(),
+  eventSourceARN: z.string(),
+  awsRegion: z.string(),
+});
+
+export async function emit(request: z.infer<typeof chatGptRequestSchema>) {
+  const message = validate(request, chatGptRequestSchema);
   const command = new SendMessageCommand({
-    QueueUrl: Queue.GPTPromptQueue.queueUrl,
-    MessageBody: JSON.stringify(request),
+    QueueUrl: Queue.GPTPrompt.queueUrl,
+    MessageBody: JSON.stringify(message),
   });
 
   return await client.send(command);
@@ -23,7 +35,7 @@ export async function emit(request: ChatGptRequest) {
 
 export async function consume() {
   const command = new ReceiveMessageCommand({
-    QueueUrl: Queue.GPTPromptQueue.queueUrl,
+    QueueUrl: Queue.GPTPrompt.queueUrl,
     MaxNumberOfMessages: 1,
   });
 
@@ -32,14 +44,14 @@ export async function consume() {
     const message = response.Messages[0];
     const receiptHandle = message.ReceiptHandle;
     const messageBody = message.Body ? JSON.parse(message.Body) : {};
-    const messageData = validateChatGptRequest(messageBody);
+    const messageData = validate(messageBody, gptPromptQueueMessageSchema);
     return { receiptHandle, messageData };
   }
 }
 
 export async function remove(receiptHandle: string) {
   const command = new DeleteMessageCommand({
-    QueueUrl: Queue.GPTPromptQueue.queueUrl,
+    QueueUrl: Queue.GPTPrompt.queueUrl,
     ReceiptHandle: receiptHandle,
   });
 

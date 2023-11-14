@@ -21,8 +21,6 @@ import { TranslationJobsQueue } from "@hublog/core/src/ScrapingStack/queue";
 import { Duration } from "aws-cdk-lib";
 
 export function ScrapingStack({ stack }: StackContext) {
-  const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
-
   const scrapsTable = new Table(stack, ScrapsDB.SCRAPS_DB_TABLE, {
     fields: {
       source: "string",
@@ -88,7 +86,6 @@ export function ScrapingStack({ stack }: StackContext) {
           scrapsTable,
           bus,
           articleTranslationsTable,
-          OPEN_AI_KEY,
         ],
       },
     },
@@ -142,16 +139,11 @@ export function ScrapingStack({ stack }: StackContext) {
   bus.subscribe(ScrapEventNames.Created, {
     handler: "packages/functions/src/scrapingStack.translationHandler",
     timeout: "5 minutes",
-    bind: [
-      OPEN_AI_KEY,
-      articleTranslationsTable,
-      scrapsTable,
-      translationJobsQueue,
-    ],
+    bind: [articleTranslationsTable, scrapsTable, translationJobsQueue],
   });
 
   bus.subscribe(ContentAIEventNames.CreatedForTranslation, {
-    bind: [OPEN_AI_KEY, imageBucket, articleTranslationsTable],
+    bind: [imageBucket, articleTranslationsTable],
     handler: "packages/functions/src/scrapingStack.postWordPressHandler",
   });
 

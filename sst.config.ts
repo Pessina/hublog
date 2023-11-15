@@ -10,6 +10,6 @@ export default {
     };
   },
   stacks(app) {
-    app.stack(ScrapingStack).stack(OpenAIStack);
+    app.stack(OpenAIStack).stack(ScrapingStack);
   },
 } satisfies SSTConfig;

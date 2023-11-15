@@ -22,6 +22,10 @@ import { APIUtils } from "@hublog/core/src/ScrapingStack/api";
 import { TranslationJobsQueue } from "@hublog/core/src/ScrapingStack/queue";
 import { getFirstImgSrc } from "@hublog/core/utils/utils";
 
+export const testHandler = ApiHandler(async (evt) => {
+  console.log("called test handler", evt.body);
+});
+
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   try {
     const validJob = APIUtils.validateSitemapInput({

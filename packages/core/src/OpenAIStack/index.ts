@@ -1,8 +1,7 @@
-import * as Validation from "./validation";
+import * as API from "./api";
 import * as Queue from "./queue";
 import * as DB from "./db";
-import * as Events from "./events";
 
-const OpenAIStack = { Validation, Queue, DB, Events };
+const OpenAIStack = { API, Queue, DB };
 
 export default OpenAIStack;

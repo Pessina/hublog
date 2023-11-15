@@ -6,6 +6,7 @@ import {
   Queue,
   Table,
   Cron,
+  use,
 } from "sst/constructs";
 import { UrlEventNames } from "@hublog/core/src/ScrapingStack/url";
 import { ContentAIEventNames } from "@hublog/core/src/ScrapingStack/contentAI";
@@ -18,8 +19,11 @@ import {
 } from "@hublog/core/src/ScrapingStack/db";
 import { TranslationJobsQueue } from "@hublog/core/src/ScrapingStack/queue";
 import { Duration } from "aws-cdk-lib";
+import { OpenAIStack } from "./OpenAIStack";
 
 export function ScrapingStack({ stack }: StackContext) {
+  const { ApiEndpoint: openAIEndpointURL } = use(OpenAIStack);
+
   const scrapsTable = new Table(stack, ScrapsDB.SCRAPS_DB_TABLE, {
     fields: {
       source: "string",
@@ -48,7 +52,7 @@ export function ScrapingStack({ stack }: StackContext) {
     }
   );
 
-  const dlq = new Queue(stack, "DeadLetterQueue");
+  const dlq = new Queue(stack, "DlqScrapingStack");
 
   const translationJobsQueue = new Queue(
     stack,
@@ -73,7 +77,7 @@ export function ScrapingStack({ stack }: StackContext) {
   });
 
   new Cron(stack, "TranslationCron", {
-    schedule: "rate(5 minutes)",
+    schedule: "rate(30 minutes)",
     job: {
       function: {
         handler: "packages/functions/src/scrapingStack.translationHandler",
@@ -99,7 +103,7 @@ export function ScrapingStack({ stack }: StackContext) {
     ],
   });
 
-  const api = new Api(stack, "api", {
+  const api = new Api(stack, "ScrapingStackAPI", {
     defaults: {
       function: {
         bind: [bus],
@@ -115,6 +119,11 @@ export function ScrapingStack({ stack }: StackContext) {
         function: {
           handler: "packages/functions/src/scrapingStack.urlListHandler",
           bind: [translationJobsQueue],
+        },
+      },
+      "POST /test": {
+        function: {
+          handler: "packages/functions/src/scrapingStack.testHandler",
         },
       },
     },

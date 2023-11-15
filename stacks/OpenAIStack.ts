@@ -1,6 +1,6 @@
 import { Api, Table, Queue, Config, Function } from "sst/constructs";
 import { LambdaInvoke } from "aws-cdk-lib/aws-stepfunctions-tasks";
-import { StateMachine } from "aws-cdk-lib/aws-stepfunctions";
+import { DefinitionBody, StateMachine } from "aws-cdk-lib/aws-stepfunctions";
 import { StackContext } from "sst/constructs";
 import { Duration } from "aws-cdk-lib";
 import core from "@hublog/core/src/OpenAIStack";
@@ -10,36 +10,59 @@ export function OpenAIStack({ stack }: StackContext) {
 
   const APIRetryTable = new Table(stack, "APIRetry", {
     fields: {
-      model: "string",
+      id: "string",
       retryCount: "number",
       lastAttemptTime: "string",
     },
-    primaryIndex: { partitionKey: "model" },
+    primaryIndex: { partitionKey: "id" },
   });
-
-  const dlq = new Queue(stack, "DeadLetterQueueOpenAIStack");
 
   const gptPromptHandler = new Function(stack, "GPTPromptHandler", {
     handler: "packages/functions/src/openAIStack.gptPromptHandler",
-    bind: [OPEN_AI_KEY, APIRetryTable],
+    bind: [OPEN_AI_KEY],
   });
 
-  const retryStateMachine = new StateMachine(stack, "RetryStateMachine", {
-    definition: new LambdaInvoke(stack, "Invoke ChatGPT API", {
-      lambdaFunction: gptPromptHandler,
-    }).addRetry({
-      interval: Duration.seconds(1),
-      backoffRate: 2.0,
-      maxAttempts: 5,
-    }),
+  const gptPromptSuccess = new Function(stack, "GPTPromptSuccess", {
+    handler: "packages/functions/src/openAIStack.gptPromptSuccess",
+    bind: [APIRetryTable],
+  });
+
+  const gptPromptFail = new Function(stack, "GPTPromptFail", {
+    handler: "packages/functions/src/openAIStack.gptPromptFail",
+    bind: [APIRetryTable],
+  });
+
+  const retryStateMachine = new StateMachine(stack, "GPTPromptRetry", {
+    definitionBody: DefinitionBody.fromChainable(
+      new LambdaInvoke(stack, "Invoke GPT Prompt Handler", {
+        lambdaFunction: gptPromptHandler,
+      })
+        .addRetry({
+          interval: Duration.seconds(30),
+          backoffRate: 2.0,
+          maxAttempts: 2,
+        })
+        .addCatch(
+          new LambdaInvoke(stack, "Invoke GPT Prompt Fail Handler", {
+            lambdaFunction: gptPromptFail,
+          })
+        )
+        .next(
+          new LambdaInvoke(stack, "Invoke GPT Prompt Success Handler", {
+            lambdaFunction: gptPromptSuccess,
+          })
+        )
+    ),
     timeout: Duration.minutes(5),
   });
+
+  const dlq = new Queue(stack, "DlqOpenAIStack");
 
   const gptPromptQueue = new Queue(stack, "GPTPrompt", {
     consumer: {
       function: {
-        handler: "packages/functions/src/openAIStack.gptQueueConsumer",
-        bind: [APIRetryTable, OPEN_AI_KEY],
+        handler: "packages/functions/src/openAIStack.gptPromptQueueConsumer",
+        bind: [],
         environment: {
           STATE_MACHINE: retryStateMachine.stateMachineArn,
         },
@@ -56,7 +79,7 @@ export function OpenAIStack({ stack }: StackContext) {
     },
   });
 
-  const api = new Api(stack, "Api", {
+  const api = new Api(stack, "OpenAIStackAPI", {
     routes: {
       "POST /chatgpt": {
         function: {
@@ -70,4 +93,8 @@ export function OpenAIStack({ stack }: StackContext) {
   stack.addOutputs({
     ApiEndpoint: api.url,
   });
+
+  return {
+    ApiEndpoint: api.url,
+  };
 }

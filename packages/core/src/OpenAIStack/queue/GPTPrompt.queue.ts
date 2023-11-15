@@ -7,7 +7,8 @@ import {
 
 import { Queue } from "sst/node/queue";
 import { z } from "zod";
-import { chatGptRequestSchema, validate } from "../validation";
+import Utils from "../../utils";
+import { gptPromptRequestSchema, gptPromptSchema } from "../api/schemas";
 
 const client = new SQSClient();
 
@@ -23,8 +24,8 @@ export const gptPromptQueueMessageSchema = z.object({
   awsRegion: z.string(),
 });
 
-export async function emit(request: z.infer<typeof chatGptRequestSchema>) {
-  const message = validate(request, chatGptRequestSchema);
+export async function emit(request: z.infer<typeof gptPromptRequestSchema>) {
+  const message = Utils.zodValidate(request, gptPromptRequestSchema);
   const command = new SendMessageCommand({
     QueueUrl: Queue.GPTPrompt.queueUrl,
     MessageBody: JSON.stringify(message),
@@ -45,7 +46,10 @@ export async function consume() {
     const receiptHandle = message.ReceiptHandle;
     if (receiptHandle) {
       const messageBody = message.Body ? JSON.parse(message.Body) : {};
-      const messageData = validate(messageBody, gptPromptQueueMessageSchema);
+      const messageData = Utils.zodValidate(
+        messageBody,
+        gptPromptQueueMessageSchema
+      );
       return { receiptHandle, messageData };
     }
   }

@@ -8,7 +8,7 @@ import {
 import { Table } from "sst/node/table";
 
 interface APIRetryItem {
-  model: string;
+  id: string;
   retryCount: number;
   lastAttemptTime: string;
 }
@@ -22,23 +22,23 @@ export class APIRetryDB {
     this.tableName = Table.APIRetry.tableName;
   }
 
-  async get(model: string) {
+  async get(id: string) {
     const command = new GetCommand({
       TableName: this.tableName,
-      Key: { model },
+      Key: { id },
     });
     const response = await this.client.send(command);
     return response.Item as APIRetryItem | undefined;
   }
 
   private async update(
-    model: string,
+    id: string,
     retryCount: number,
     lastAttemptTime: string
   ) {
     const command = new UpdateCommand({
       TableName: this.tableName,
-      Key: { model },
+      Key: { id },
       UpdateExpression: "set retryCount = :r, lastAttemptTime = :l",
       ExpressionAttributeValues: {
         ":r": retryCount,
@@ -48,37 +48,37 @@ export class APIRetryDB {
     await this.client.send(command);
   }
 
-  async incrementRetryCount(model: string) {
-    const item = await this.get(model);
+  async incrementRetryCount(id: string) {
+    const item = await this.get(id);
     if (item) {
       const retryCount = Number(item.retryCount) + 1;
-      await this.update(model, retryCount, new Date().toISOString());
+      await this.update(id, retryCount, new Date().toISOString());
     } else {
       await this.create({
-        model,
+        id,
         retryCount: 1,
         lastAttemptTime: new Date().toISOString(),
       });
     }
   }
 
-  async resetRetryCount(model: string) {
-    await this.delete(model);
+  async resetRetryCount(id: string) {
+    await this.delete(id);
   }
 
-  async delete(model: string) {
+  async delete(id: string) {
     const command = new DeleteCommand({
       TableName: this.tableName,
-      Key: { model },
+      Key: { id },
     });
     await this.client.send(command);
   }
 
-  async create({ model, retryCount, lastAttemptTime }: APIRetryItem) {
+  async create({ id, retryCount, lastAttemptTime }: APIRetryItem) {
     const command = new PutCommand({
       TableName: this.tableName,
       Item: {
-        model,
+        id,
         retryCount: retryCount.toString(),
         lastAttemptTime: lastAttemptTime,
       },

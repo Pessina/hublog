@@ -88,9 +88,8 @@ export const gptPromptSuccess = async (
 };
 
 export const gptPromptFail = async (evt: any) => {
-  const callbackURL = JSON.parse(
-    JSON.parse(evt.Cause).errorMessage
-  ).callbackURL;
+  const cause = JSON.parse(evt.Cause);
+  const callbackURL = JSON.parse(cause.errorMessage).callbackURL;
   // const exponentialRetry = new core.DB.APIRetryDB();
   // exponentialRetry.incrementRetryCount(message.model);
 

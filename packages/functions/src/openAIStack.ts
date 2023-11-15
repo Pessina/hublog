@@ -58,10 +58,13 @@ export const gptPromptHandler = async (evt: any) => {
       callbackURL: message.callbackURL,
       response: res,
     };
-  } catch (error: any) {
-    throw new Error(
-      `Failed to create chat completions with OpenAI: ${error.message}`
-    );
+  } catch (e: any) {
+    const error = {
+      message: e.message,
+      callbackURL: message.callbackURL,
+    };
+
+    throw new Error(JSON.stringify(error));
   }
 };
 
@@ -84,8 +87,18 @@ export const gptPromptSuccess = async (
   });
 };
 
-export const gptPromptFail = async (evt: Lambda.Types.InvocationResponse) => {
-  console.log(evt);
+export const gptPromptFail = async (evt: any) => {
+  const callbackURL = JSON.parse(
+    JSON.parse(evt.Cause).errorMessage
+  ).callbackURL;
   // const exponentialRetry = new core.DB.APIRetryDB();
   // exponentialRetry.incrementRetryCount(message.model);
+
+  await fetch(callbackURL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: "Fail",
+  });
 };

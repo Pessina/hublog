@@ -38,7 +38,7 @@ export function OpenAIStack({ stack }: StackContext) {
         lambdaFunction: gptPromptHandler,
       })
         .addRetry({
-          interval: Duration.seconds(30),
+          interval: Duration.seconds(5),
           backoffRate: 2.0,
           maxAttempts: 2,
         })

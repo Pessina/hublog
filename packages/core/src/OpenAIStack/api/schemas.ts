@@ -98,11 +98,11 @@ export const gptFunctionResponseSchema = z.object({
 });
 
 export const gptPromptRequestSchema = z.object({
-  callbackURL: z.string(),
+  callbackURL: z.string().url(),
   prompt: gptPromptSchema,
 });
 
 export const gptPromptResponseSchema = z.object({
-  callbackURL: z.string(),
+  callbackURL: z.string().url(),
   response: z.union([gptFunctionResponseSchema, gptDefaultResponseSchema]),
 });

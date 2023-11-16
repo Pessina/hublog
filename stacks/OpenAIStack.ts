@@ -19,7 +19,7 @@ export function OpenAIStack({ stack }: StackContext) {
 
   const gptPromptHandler = new Function(stack, "GPTPromptHandler", {
     handler: "packages/functions/src/openAIStack.gptPromptHandler",
-    bind: [OPEN_AI_KEY],
+    bind: [OPEN_AI_KEY, APIRetryTable],
   });
 
   const gptPromptSuccess = new Function(stack, "GPTPromptSuccess", {
@@ -29,7 +29,6 @@ export function OpenAIStack({ stack }: StackContext) {
 
   const gptPromptFail = new Function(stack, "GPTPromptFail", {
     handler: "packages/functions/src/openAIStack.gptPromptFail",
-    bind: [APIRetryTable],
   });
 
   const retryStateMachine = new StateMachine(stack, "GPTPromptRetry", {

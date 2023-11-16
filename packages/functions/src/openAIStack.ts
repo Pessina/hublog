@@ -29,6 +29,7 @@ export const gptAPIHandler = ApiHandler(async (evt) => {
   }
 });
 
+// TODO: if the model it's failing too much interrupt the SQS consumer, check APIRetry table
 export const gptPromptQueueConsumer = async (evt: SQSEvent) => {
   const message = Utils.zodValidate(
     evt.Records[0],
@@ -60,6 +61,9 @@ export const gptPromptHandler = async (evt: any) => {
       response: res,
     };
   } catch (e: any) {
+    const exponentialRetry = new core.DB.APIRetryDB();
+    await exponentialRetry.incrementRetryCount(message.prompt.model);
+
     // TODO: add logging to track errors
     switch (e.error.code) {
       case "context_length_exceeded":
@@ -89,7 +93,7 @@ export const gptPromptSuccess = async (
     );
 
     const exponentialRetry = new core.DB.APIRetryDB();
-    exponentialRetry.resetRetryCount(res.response.model);
+    await exponentialRetry.resetRetryCount(res.response.model);
 
     await fetch(res.callbackURL, {
       method: "POST",
@@ -117,8 +121,6 @@ export const gptPromptSuccess = async (
 export const gptPromptFail = async (evt: any) => {
   const cause = JSON.parse(evt.Cause);
   const callbackURL = JSON.parse(cause.errorMessage).callbackURL;
-  // const exponentialRetry = new core.DB.APIRetryDB();
-  // exponentialRetry.incrementRetryCount(message.model);
 
   await fetch(callbackURL, {
     method: "POST",

@@ -40,61 +40,51 @@ export const gptPromptSchema = z.object({
     .optional(),
 });
 
-export const gptDefaultResponseSchema = z.object({
+const gptBaseResponseSchema = {
   id: z.string(),
   object: z.literal("chat.completion"),
   created: z.number(),
   model: z.string(),
-  system_fingerprint: z.string().optional(),
-  choices: z.array(
-    z.object({
-      index: z.number(),
-      message: z.object({
-        role: z.literal("assistant"),
-        content: z.string(),
-      }),
-      finish_reason: z.string(),
-    })
-  ),
   usage: z.object({
     prompt_tokens: z.number(),
     completion_tokens: z.number(),
     total_tokens: z.number(),
   }),
+};
+
+const gptBaseChoiceSchema = {
+  index: z.number(),
+  message: z.object({
+    role: z.literal("assistant"),
+    content: z.string(),
+  }),
+  finish_reason: z.string(),
+};
+
+const gptFunctionChoiceSchema = {
+  ...gptBaseChoiceSchema,
+  tool_calls: z
+    .array(
+      z.object({
+        id: z.string(),
+        type: z.literal("function"),
+        function: z.object({
+          name: z.string(),
+          arguments: z.string(),
+        }),
+      })
+    )
+    .optional(),
+};
+
+export const gptDefaultResponseSchema = z.object({
+  ...gptBaseResponseSchema,
+  choices: z.array(z.object(gptBaseChoiceSchema)),
 });
 
 export const gptFunctionResponseSchema = z.object({
-  id: z.string(),
-  object: z.literal("chat.completion"),
-  created: z.number(),
-  model: z.string(),
-  choices: z.array(
-    z.object({
-      index: z.number(),
-      message: z.object({
-        role: z.literal("assistant"),
-        content: z.string().nullable(),
-        tool_calls: z
-          .array(
-            z.object({
-              id: z.string(),
-              type: z.literal("function"),
-              function: z.object({
-                name: z.string(),
-                arguments: z.string(),
-              }),
-            })
-          )
-          .optional(),
-      }),
-      finish_reason: z.string(),
-    })
-  ),
-  usage: z.object({
-    prompt_tokens: z.number(),
-    completion_tokens: z.number(),
-    total_tokens: z.number(),
-  }),
+  ...gptBaseResponseSchema,
+  choices: z.array(z.object(gptFunctionChoiceSchema)),
 });
 
 export const gptPromptRequestSchema = z.object({
@@ -102,7 +92,12 @@ export const gptPromptRequestSchema = z.object({
   prompt: gptPromptSchema,
 });
 
-export const gptPromptResponseSchema = z.object({
+export const gptPromptSuccessResponseSchema = z.object({
   callbackURL: z.string().url(),
   response: z.union([gptFunctionResponseSchema, gptDefaultResponseSchema]),
+});
+
+export const gptPromptErrorResponseSchema = z.object({
+  callbackURL: z.string().url(),
+  message: z.string(),
 });

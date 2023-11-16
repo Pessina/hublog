@@ -59,32 +59,58 @@ export const gptPromptHandler = async (evt: any) => {
       response: res,
     };
   } catch (e: any) {
-    const error = {
-      message: e.message,
-      callbackURL: message.callbackURL,
-    };
-
-    throw new Error(JSON.stringify(error));
+    // TODO: add logging to track errors
+    switch (e.error.code) {
+      case "context_length_exceeded":
+        return {
+          message: e.message,
+          callbackURL: message.callbackURL,
+        };
+      case "rate_limit_exceeded":
+        const error = {
+          message: e.message,
+          callbackURL: message.callbackURL,
+        };
+        throw new Error(JSON.stringify(error));
+      default:
+        throw new Error(e);
+    }
   }
 };
 
 export const gptPromptSuccess = async (
   evt: Lambda.Types.InvocationResponse
 ) => {
-  const res = Utils.zodValidate(
-    evt.Payload,
-    core.API.schemas.gptPromptResponseSchema
-  );
-  const exponentialRetry = new core.DB.APIRetryDB();
-  exponentialRetry.resetRetryCount(res.response.model);
+  try {
+    const res = Utils.zodValidate(
+      evt.Payload,
+      core.API.schemas.gptPromptSuccessResponseSchema
+    );
 
-  await fetch(res.callbackURL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(res),
-  });
+    const exponentialRetry = new core.DB.APIRetryDB();
+    exponentialRetry.resetRetryCount(res.response.model);
+
+    await fetch(res.callbackURL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(res),
+    });
+  } catch {
+    const res = Utils.zodValidate(
+      evt.Payload,
+      core.API.schemas.gptPromptErrorResponseSchema
+    );
+
+    await fetch(res.callbackURL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(res),
+    });
+  }
 };
 
 export const gptPromptFail = async (evt: any) => {

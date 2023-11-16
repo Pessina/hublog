@@ -6,6 +6,7 @@ import { Config } from "sst/node/config";
 import { SQSEvent } from "aws-lambda";
 import { Lambda } from "aws-sdk";
 
+// TODO: Add model token limit validation here
 export const gptAPIHandler = ApiHandler(async (evt) => {
   try {
     const req = Utils.zodValidate(

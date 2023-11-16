@@ -89,7 +89,7 @@ export const gptPromptSuccess = async (
   try {
     const res = Utils.zodValidate(
       evt.Payload,
-      core.API.schemas.gptPromptSuccessResponseSchema
+      core.API.schemas.gptHandlerSuccessResponseSchema
     );
 
     const exponentialRetry = new core.DB.APIRetryDB();
@@ -105,7 +105,7 @@ export const gptPromptSuccess = async (
   } catch {
     const res = Utils.zodValidate(
       evt.Payload,
-      core.API.schemas.gptPromptErrorResponseSchema
+      core.API.schemas.gptHandlerErrorResponseSchema
     );
 
     await fetch(res.callbackURL, {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import Utils from "@hublog/core/src/utils";
 
 export const gptPromptSchema = z.object({
   model: z.union([
@@ -40,64 +41,20 @@ export const gptPromptSchema = z.object({
     .optional(),
 });
 
-const gptBaseResponseSchema = {
-  id: z.string(),
-  object: z.literal("chat.completion"),
-  created: z.number(),
-  model: z.string(),
-  usage: z.object({
-    prompt_tokens: z.number(),
-    completion_tokens: z.number(),
-    total_tokens: z.number(),
-  }),
-};
-
-const gptBaseChoiceSchema = {
-  index: z.number(),
-  message: z.object({
-    role: z.literal("assistant"),
-    content: z.string(),
-  }),
-  finish_reason: z.string(),
-};
-
-const gptFunctionChoiceSchema = {
-  ...gptBaseChoiceSchema,
-  tool_calls: z
-    .array(
-      z.object({
-        id: z.string(),
-        type: z.literal("function"),
-        function: z.object({
-          name: z.string(),
-          arguments: z.string(),
-        }),
-      })
-    )
-    .optional(),
-};
-
-export const gptDefaultResponseSchema = z.object({
-  ...gptBaseResponseSchema,
-  choices: z.array(z.object(gptBaseChoiceSchema)),
-});
-
-export const gptFunctionResponseSchema = z.object({
-  ...gptBaseResponseSchema,
-  choices: z.array(z.object(gptFunctionChoiceSchema)),
-});
-
 export const gptPromptRequestSchema = z.object({
   callbackURL: z.string().url(),
   prompt: gptPromptSchema,
 });
 
-export const gptPromptSuccessResponseSchema = z.object({
+export const gptHandlerSuccessResponseSchema = z.object({
   callbackURL: z.string().url(),
-  response: z.union([gptFunctionResponseSchema, gptDefaultResponseSchema]),
+  response: z.union([
+    Utils.GPT.functionResponseSchema,
+    Utils.GPT.defaultResponseSchema,
+  ]),
 });
 
-export const gptPromptErrorResponseSchema = z.object({
+export const gptHandlerErrorResponseSchema = z.object({
   callbackURL: z.string().url(),
   message: z.string(),
 });

@@ -22,7 +22,13 @@ import { Duration } from "aws-cdk-lib";
 import { OpenAIStack } from "./OpenAIStack";
 
 export function ScrapingStack({ stack }: StackContext) {
-  const { ApiEndpoint: openAIEndpointURL } = use(OpenAIStack);
+  const { ApiEndpoint: openAIServiceURL } = use(OpenAIStack);
+
+  const bus = new EventBus(stack, "bus", {
+    defaults: {
+      retries: 0,
+    },
+  });
 
   const scrapsTable = new Table(stack, ScrapsDB.SCRAPS_DB_TABLE, {
     fields: {
@@ -60,7 +66,8 @@ export function ScrapingStack({ stack }: StackContext) {
     {
       cdk: {
         queue: {
-          visibilityTimeout: Duration.minutes(5),
+          deliveryDelay: Duration.seconds(5),
+          visibilityTimeout: Duration.seconds(30),
           deadLetterQueue: {
             queue: dlq.cdk.queue,
             maxReceiveCount: 2,
@@ -69,30 +76,6 @@ export function ScrapingStack({ stack }: StackContext) {
       },
     }
   );
-
-  const bus = new EventBus(stack, "bus", {
-    defaults: {
-      retries: 0,
-    },
-  });
-
-  new Cron(stack, "TranslationCron", {
-    schedule: "rate(30 minutes)",
-    job: {
-      function: {
-        handler: "packages/functions/src/scrapingStack.translationHandler",
-        // Adjust based on OpenAI limits
-        // Request quota
-        // reservedConcurrentExecutions: 1,
-        bind: [
-          translationJobsQueue,
-          scrapsTable,
-          bus,
-          articleTranslationsTable,
-        ],
-      },
-    },
-  });
 
   const imageBucket = new Bucket(stack, ImagesBucket.IMAGES_BUCKET, {
     cors: [
@@ -121,10 +104,21 @@ export function ScrapingStack({ stack }: StackContext) {
           bind: [translationJobsQueue],
         },
       },
-      "POST /test": {
+      "POST /gpt-open-ai-service-handler": {
         function: {
-          handler: "packages/functions/src/scrapingStack.testHandler",
+          handler:
+            "packages/functions/src/scrapingStack.GPTOpenAIServiceHandler",
         },
+      },
+    },
+  });
+
+  translationJobsQueue.addConsumer(stack, {
+    function: {
+      handler: "packages/functions/src/scrapingStack.translationHandler",
+      bind: [scrapsTable, bus, api],
+      environment: {
+        OPEN_AI_SERVICE_URL: openAIServiceURL,
       },
     },
   });

@@ -1,4 +1,5 @@
-import { z, ZodTypeAny } from "zod";
+import { z } from "zod";
+import Utils from "../../utils";
 
 interface SitemapTranslationJob {
   id: string;
@@ -23,18 +24,6 @@ export interface DestinationBlog {
   password: string;
 }
 
-function validateInput<T>(translationJob: T, schema: ZodTypeAny): T {
-  const parsedTranslationJob = schema.safeParse(translationJob);
-
-  if (!parsedTranslationJob.success) {
-    throw new Error(
-      `Invalid TranslationJob data: ${parsedTranslationJob.error}`
-    );
-  }
-
-  return parsedTranslationJob.data;
-}
-
 export const destinationBlogsSchema = z.array(
   z.object({
     blogURL: z.string().url(),
@@ -50,7 +39,7 @@ export const validateSitemapInput = (translationJob: SitemapTranslationJob) => {
     sitemap: z.string().url(),
     destinationBlogs: destinationBlogsSchema,
   });
-  return validateInput(translationJob, translationJobSchema);
+  return Utils.zodValidate(translationJob, translationJobSchema);
 };
 
 export const validateURLListInput = (translationJob: ULRListTranslationJob) => {
@@ -59,5 +48,5 @@ export const validateURLListInput = (translationJob: ULRListTranslationJob) => {
     urlList: z.array(z.string().url()),
     destinationBlogs: destinationBlogsSchema,
   });
-  return validateInput(translationJob, translationJobSchema);
+  return Utils.zodValidate(translationJob, translationJobSchema);
 };

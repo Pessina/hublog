@@ -1,13 +1,13 @@
 // cSpell:disable
 
-import { Prompt } from "./prompt.types";
+import { GPTPrompt } from "../schemas/types";
 
-const seo = (rawHTML: string, targetLanguage: string): Prompt[] => [
-  {
-    id: "seo",
-    model: "gpt-3.5-turbo-1106",
-    role: "user",
-    content: `
+const seo = (rawHTML: string, targetLanguage: string): GPTPrompt => ({
+  model: "gpt-3.5-turbo-1106",
+  messages: [
+    {
+      role: "user",
+      content: `
     - HTML: '''${rawHTML}'''
     - Target Language: '''${targetLanguage}'''
 
@@ -16,8 +16,9 @@ const seo = (rawHTML: string, targetLanguage: string): Prompt[] => [
     NOTE: 
       - Your answer should be the HTML content. Nothing else
 `,
-  },
-];
+    },
+  ],
+});
 
 export const contentPrompts = {
   seo,

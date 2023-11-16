@@ -23,7 +23,7 @@ export const gptAPIHandler = ApiHandler(async (evt) => {
     return {
       statusCode: 500,
       body: JSON.stringify({
-        message: `Error creating event for sitemap: ${error?.message}`,
+        message: `An error occurred while processing the GPT prompt request: ${error?.message}`,
       }),
     };
   }
@@ -68,12 +68,18 @@ export const gptPromptHandler = async (evt: any) => {
     switch (e.error.code) {
       case "context_length_exceeded":
         return {
-          message: e.message,
+          response: {
+            errorCode: e.error.code,
+            message: e.error.message,
+          },
           callbackURL: message.callbackURL,
         };
       case "rate_limit_exceeded":
         const error = {
-          message: e.message,
+          response: {
+            errorCode: e.error.code,
+            message: e.error.message,
+          },
           callbackURL: message.callbackURL,
         };
         throw new Error(JSON.stringify(error));
@@ -100,7 +106,7 @@ export const gptPromptSuccess = async (
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(res),
+      body: JSON.stringify(res.response),
     });
   } catch {
     const res = Utils.zodValidate(
@@ -113,7 +119,7 @@ export const gptPromptSuccess = async (
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(res),
+      body: JSON.stringify(res.response),
     });
   }
 };
@@ -127,6 +133,9 @@ export const gptPromptFail = async (evt: any) => {
     headers: {
       "Content-Type": "application/json",
     },
-    body: "Fail",
+    body: JSON.stringify({
+      message: "Error invoking GPT Prompt Handler",
+      errorCode: 500,
+    }),
   });
 };

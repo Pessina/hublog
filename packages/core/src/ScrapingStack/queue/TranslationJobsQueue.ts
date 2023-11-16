@@ -6,6 +6,7 @@ import {
 } from "@aws-sdk/client-sqs";
 import { Queue } from "sst/node/queue";
 import { z } from "zod";
+import Utils from "../../utils";
 
 const sqs = new SQSClient();
 
@@ -27,18 +28,8 @@ export const translationJobsQueueSchema = z.object({
   originURL: z.string().url(),
 });
 
-export const validate = (data: any) => {
-  const result = translationJobsQueueSchema.safeParse(data);
-
-  if (!result.success) {
-    throw new Error(`Invalid data: ${result.error}`);
-  }
-
-  return result.data;
-};
-
 export const emitMessage = async (data: TranslationJobsQueueSchema) => {
-  const validData = validate(data);
+  const validData = Utils.zodValidate(data, translationJobsQueueSchema);
 
   if (validData) {
     const command = new SendMessageCommand({
@@ -67,7 +58,10 @@ export const consumeMessage =
       const message = response.Messages[0];
       if (message.Body && message.ReceiptHandle) {
         const parsedMessage = JSON.parse(message.Body);
-        const validData = validate(parsedMessage);
+        const validData = Utils.zodValidate(
+          parsedMessage,
+          translationJobsQueueSchema
+        );
         return { data: validData, messageId: message.ReceiptHandle };
       }
     }

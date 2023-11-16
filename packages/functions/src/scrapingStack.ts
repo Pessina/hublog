@@ -1,10 +1,7 @@
-import { ApiHandler } from "sst/node/api";
+import { Api, ApiHandler } from "sst/node/api";
 import crypto from "crypto";
 
-import {
-  ContentAIUtils,
-  ContentAIEvents,
-} from "@hublog/core/src/ScrapingStack/contentAI";
+import { ContentAIEvents } from "@hublog/core/src/ScrapingStack/contentAI";
 import { EventHandler } from "sst/node/event-bus";
 import { UrlUtils, UrlEvents } from "@hublog/core/src/ScrapingStack/url";
 import {
@@ -19,12 +16,10 @@ import {
 } from "@hublog/core/src/ScrapingStack/db";
 import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import { APIUtils } from "@hublog/core/src/ScrapingStack/api";
-import { TranslationJobsQueue } from "@hublog/core/src/ScrapingStack/queue";
 import { getFirstImgSrc } from "@hublog/core/utils/utils";
-
-export const testHandler = ApiHandler(async (evt) => {
-  console.log("called test handler", evt.body);
-});
+import Utils from "@hublog/core/utils";
+import { SQSEvent } from "aws-lambda";
+import core from "@hublog/core/src/ScrapingStack";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   try {
@@ -126,148 +121,170 @@ export const imageUploadHandler = EventHandler(
   }
 );
 
-export const translationHandler = async () => {
-  let translationJobMessage = await TranslationJobsQueue.consumeMessage();
-  if (!translationJobMessage)
-    throw new Error(
-      `translationHandler: No message found in the queue to process`
-    );
+export const translationHandler = async (message: SQSEvent) => {
+  const { body } = message.Records[0];
+  const data = Utils.zodValidate(
+    JSON.parse(body),
+    core.Queue.TranslationJobsQueue.translationJobsQueueSchema
+  );
 
-  let { data: translationJob, messageId } = translationJobMessage;
-  let scrap = await ScrapsDB.getScrap(translationJob.originURL);
-
-  while (!scrap) {
-    translationJobMessage = await TranslationJobsQueue.consumeMessage();
-    if (!translationJobMessage) {
-      throw new Error(
-        `translationHandler: No message found in the queue to process`
-      );
-    }
-    translationJob = translationJobMessage.data;
-    messageId = translationJobMessage.messageId;
-    scrap = await ScrapsDB.getScrap(translationJob.originURL);
+  let scrap = await ScrapsDB.getScrap(data.originURL);
+  if (!scrap) {
+    throw new Error(`No scrap found for URL ${data.originURL}`);
   }
 
   try {
     const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
 
-    const translatedHTML = (
-      await Promise.all(
-        headersArr.map(async (h) => {
-          const cleanText = await ContentAIUtils.cleanContent(h);
-          const translated = await ContentAIUtils.translateText(
-            cleanText,
-            translationJob.language
-          );
-          const improvedText = await ContentAIUtils.improveReadability(
-            translated,
-            translationJob.language
-          );
-
-          return ScrapUtils.trimAndRemoveQuotes(improvedText);
-        })
+    await Promise.all(
+      headersArr.map(
+        async (text) =>
+          await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
+            method: "POST",
+            body: JSON.stringify({
+              prompt: Utils.GPT.contentPrompts.translateText(
+                text,
+                data.language
+              ),
+              callbackURL: `${Api.ScrapingStackAPI.url}/gpt-open-ai-service-handler`,
+            }),
+          })
       )
-    ).join(" ");
-
-    const SEOArgs = await ContentAIUtils.getSEOArgs(
-      translatedHTML,
-      translationJob.language
     );
 
-    await ArticleTranslationsDB.createOrUpdateArticleTranslation({
-      source: translationJob.originURL,
-      title: SEOArgs.title,
-      metaDescription: SEOArgs.metaDescription,
-      slug: SEOArgs.slug,
-      html: translatedHTML,
-      language: translationJob.language,
-    });
+    // const translatedHTML = (
+    //   await Promise.all(
+    //     headersArr.map(async (h) => {
+    //       const cleanText = await ContentAIUtils.cleanContent(h);
+    //       const translated = await ContentAIUtils.translateText(
+    //         cleanText,
+    //         data.language
+    //       );
+    //       const improvedText = await ContentAIUtils.improveReadability(
+    //         translated,
+    //         data.language
+    //       );
 
-    await ContentAIEvents.CreatedForTranslation.publish({
-      url: translationJob.originURL,
-      language: translationJob.language,
-      email: translationJob.email,
-      password: translationJob.password,
-      blogURL: translationJob.blogURL,
-    });
+    //       return ScrapUtils.trimAndRemoveQuotes(improvedText);
+    //     })
+    //   )
+    // ).join(" ");
 
-    await TranslationJobsQueue.deleteMessage(messageId);
+    // const SEOArgs = await ContentAIUtils.getSEOArgs(
+    //   translatedHTML,
+    //   data.language
+    // );
+
+    // await ArticleTranslationsDB.createOrUpdateArticleTranslation({
+    //   source: data.originURL,
+    //   title: SEOArgs.title,
+    //   metaDescription: SEOArgs.metaDescription,
+    //   slug: SEOArgs.slug,
+    //   html: translatedHTML,
+    //   language: data.language,
+    // });
+
+    // await ContentAIEvents.CreatedForTranslation.publish({
+    //   url: data.originURL,
+    //   language: data.language,
+    //   email: data.email,
+    //   password: data.password,
+    //   blogURL: data.blogURL,
+    // });
   } catch (error: any) {
-    console.error(`Error translating ${translationJob.originURL}: ${error}`);
+    console.error(`Error translating ${data.originURL}: ${error}`);
   }
 };
 
-export const postWordPressHandler = EventHandler(
-  ContentAIEvents.CreatedForTranslation,
-  async (evt) => {
-    const { url, language, email, password, blogURL } = evt.properties;
-    const articleTranslated = await ArticleTranslationsDB.getArticleTranslation(
-      url,
-      language
+// export const postWordPressHandler = EventHandler(
+//   ContentAIEvents.CreatedForTranslation,
+//   async (evt) => {
+//     const { url, language, email, password, blogURL } = evt.properties;
+//     const articleTranslated = await ArticleTranslationsDB.getArticleTranslation(
+//       url,
+//       language
+//     );
+
+//     if (!articleTranslated) {
+//       throw new Error(
+//         `postWordPressHandler: No article found for ${url} in ${language}`
+//       );
+//     }
+
+//     const wordPress = new WordPress(email, password, blogURL);
+
+//     const getTagsAndCategories = async () => {
+//       const tags = await wordPress.getTags();
+//       const categories = await wordPress.getCategories();
+
+//       const wordPressClassificationArgs =
+//         await ContentAIUtils.getWordPressClassificationArgs(
+//           articleTranslated.html,
+//           tags.map((t) => t.name),
+//           categories.map((c) => c.name)
+//         );
+
+//       const categoriesIds = categories
+//         .filter((c) => wordPressClassificationArgs.categories.includes(c.name))
+//         .map((c) => c.id);
+
+//       const tagsIds = tags
+//         .filter((t) => wordPressClassificationArgs.tags.includes(t.name))
+//         .map((t) => t.id);
+
+//       return {
+//         categoriesIds,
+//         tagsIds,
+//       };
+//     };
+
+//     const getFeaturedImage = async () => {
+//       const src = getFirstImgSrc(articleTranslated.html);
+//       const img = await ImagesBucket.retrieveImageFile(src);
+//       return await wordPress.createMedia(img, src, {
+//         status: "publish",
+//         title: src,
+//       });
+//     };
+
+//     const [htmlWithImages, tagsAndCategories, wordPressImg] = await Promise.all(
+//       [
+//         ScrapUtils.addBackImageUrls(articleTranslated.html),
+//         getTagsAndCategories(),
+//         getFeaturedImage(),
+//       ]
+//     );
+
+//     await wordPress.createPost({
+//       title: articleTranslated.title,
+//       excerpt: articleTranslated.metaDescription,
+//       meta: {
+//         description: articleTranslated.metaDescription,
+//       },
+//       content: htmlWithImages,
+//       status: "publish",
+//       slug: articleTranslated.slug,
+//       categories: tagsAndCategories.categoriesIds,
+//       tags: tagsAndCategories.tagsIds,
+//       featured_media: wordPressImg.id,
+//     });
+//   }
+// );
+
+export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
+  try {
+    const res = Utils.zodValidate(
+      JSON.parse(evt.body ?? ""),
+      Utils.GPT.responseSchema
     );
 
-    if (!articleTranslated) {
-      throw new Error(
-        `postWordPressHandler: No article found for ${url} in ${language}`
-      );
-    }
-
-    const wordPress = new WordPress(email, password, blogURL);
-
-    const getTagsAndCategories = async () => {
-      const tags = await wordPress.getTags();
-      const categories = await wordPress.getCategories();
-
-      const wordPressClassificationArgs =
-        await ContentAIUtils.getWordPressClassificationArgs(
-          articleTranslated.html,
-          tags.map((t) => t.name),
-          categories.map((c) => c.name)
-        );
-
-      const categoriesIds = categories
-        .filter((c) => wordPressClassificationArgs.categories.includes(c.name))
-        .map((c) => c.id);
-
-      const tagsIds = tags
-        .filter((t) => wordPressClassificationArgs.tags.includes(t.name))
-        .map((t) => t.id);
-
-      return {
-        categoriesIds,
-        tagsIds,
-      };
-    };
-
-    const getFeaturedImage = async () => {
-      const src = getFirstImgSrc(articleTranslated.html);
-      const img = await ImagesBucket.retrieveImageFile(src);
-      return await wordPress.createMedia(img, src, {
-        status: "publish",
-        title: src,
-      });
-    };
-
-    const [htmlWithImages, tagsAndCategories, wordPressImg] = await Promise.all(
-      [
-        ScrapUtils.addBackImageUrls(articleTranslated.html),
-        getTagsAndCategories(),
-        getFeaturedImage(),
-      ]
+    console.log(res.choices[0].message.content);
+  } catch {
+    const res = Utils.zodValidate(
+      JSON.parse(evt.body ?? ""),
+      Utils.error.errorSchema
     );
 
-    await wordPress.createPost({
-      title: articleTranslated.title,
-      excerpt: articleTranslated.metaDescription,
-      meta: {
-        description: articleTranslated.metaDescription,
-      },
-      content: htmlWithImages,
-      status: "publish",
-      slug: articleTranslated.slug,
-      categories: tagsAndCategories.categoriesIds,
-      tags: tagsAndCategories.tagsIds,
-      featured_media: wordPressImg.id,
-    });
+    console.log(res.errorCode);
   }
-);
+});

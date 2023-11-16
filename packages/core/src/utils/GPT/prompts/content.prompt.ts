@@ -1,32 +1,33 @@
-import { Prompt } from "./prompt.types";
+import { GPTPrompt } from "../schemas/types";
 
-const cleanContent = (text: string): Prompt[] => [
-  {
-    id: "cleanContent",
-    model: "gpt-3.5-turbo-1106",
-    role: "user",
-    content: `
-    - HTML: '''${text}'''
+const cleanContent = (text: string): GPTPrompt => ({
+  model: "gpt-3.5-turbo-1106",
+  messages: [
+    {
+      role: "user",
+      content: `
+      - HTML: '''${text}'''
+  
+      Remove from the HTML all:
+        - Suggestion/recommendation to other blog posts
+        - Formulary
+        - Reference to the original author/blog
+      
+      NOTE: 
+        - Do not change the language of the content
+        - Do not remove any HTML tag
+        - Your answer should be the HTML, nothing else, without quotes around the output
+  `,
+    },
+  ],
+});
 
-    Remove from the HTML all:
-      - Suggestion/recommendation to other blog posts
-      - Formulary
-      - Reference to the original author/blog
-    
-    NOTE: 
-      - Do not change the language of the content
-      - Do not remove any HTML tag
-      - Your answer should be the HTML, nothing else, without quotes around the output
-`,
-  },
-];
-
-const translateText = (text: string, targetLanguage: string): Prompt[] => [
-  {
-    id: "translateText",
-    model: "gpt-3.5-turbo-1106",
-    role: "user",
-    content: `
+const translateText = (text: string, targetLanguage: string): GPTPrompt => ({
+  model: "gpt-3.5-turbo-1106",
+  messages: [
+    {
+      role: "user",
+      content: `
     - HTML: '''${text}'''
     - Target Language: '''${targetLanguage}'''
 
@@ -36,16 +37,20 @@ const translateText = (text: string, targetLanguage: string): Prompt[] => [
       - Do not remove any HTMl tag
       - Your answer should be the HTML, nothing else, without quotes around the output
 `,
-  },
-];
+    },
+  ],
+});
 
 // TODO: Add a prompt to break content by headers, paragraph and sections
-const improveReadability = (text: string, targetLanguage: string): Prompt[] => [
-  {
-    id: "improveContent",
-    model: "gpt-3.5-turbo-1106",
-    role: "user",
-    content: `
+const improveReadability = (
+  text: string,
+  targetLanguage: string
+): GPTPrompt => ({
+  model: "gpt-3.5-turbo-1106",
+  messages: [
+    {
+      role: "user",
+      content: `
     - HTML: '''${text}'''
     - Target Language: '''${targetLanguage}'''
 
@@ -56,15 +61,17 @@ const improveReadability = (text: string, targetLanguage: string): Prompt[] => [
       - Do not remove any HTML tag
       - Your answer should be the HTML, nothing else, without quotes around the output
 `,
-  },
-];
+    },
+  ],
+});
 
-const getSEOArgs = (rawHTML: string, targetLanguage: string): Prompt[] => [
-  {
-    id: "wordPressArgs",
-    model: "gpt-3.5-turbo-16k",
-    role: "user",
-    content: `
+const getSEOArgs = (rawHTML: string, targetLanguage: string): GPTPrompt => ({
+  model: "gpt-3.5-turbo-1106",
+  response_format: { type: "json_object" },
+  messages: [
+    {
+      role: "user",
+      content: `
       Given the HTML content of a WordPress Travel Blog post:
       - HTML: '''${rawHTML}'''
       - Target language: '''${targetLanguage}'''
@@ -101,22 +108,9 @@ const getSEOArgs = (rawHTML: string, targetLanguage: string): Prompt[] => [
         "slug": "string"
       }}
     `,
-    schema: {
-      type: "object",
-      properties: {
-        title: {
-          type: "string",
-        },
-        metaDescription: {
-          type: "string",
-        },
-        slug: {
-          type: "string",
-        },
-      },
     },
-  },
-];
+  ],
+});
 
 export const contentPrompts = {
   getSEOArgs,

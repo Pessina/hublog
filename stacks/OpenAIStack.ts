@@ -31,6 +31,7 @@ export function OpenAIStack({ stack }: StackContext) {
     handler: "packages/functions/src/openAIStack.gptPromptFail",
   });
 
+  // TODO: introduce Choice to choose which path go after the retry.
   const retryStateMachine = new StateMachine(stack, "GPTPromptRetry", {
     definitionBody: DefinitionBody.fromChainable(
       new LambdaInvoke(stack, "Invoke GPT Prompt Handler", {

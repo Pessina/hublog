@@ -1,15 +1,16 @@
-import { Prompt } from "./prompt.types";
+import { GPTPrompt } from "../schemas/types";
 
 const getWordPressClassificationArgs = (
   rawHTML: string,
   tags: string[],
   categories: string[]
-): Prompt[] => [
-  {
-    id: "wordPressArgs",
-    model: "gpt-3.5-turbo-16k",
-    role: "user",
-    content: `
+): GPTPrompt => ({
+  model: "gpt-3.5-turbo-1106",
+  response_format: { type: "json_object" },
+  messages: [
+    {
+      role: "user",
+      content: `
       Given the HTML content of a WordPress Travel Blog post:
       - HTML: '''${rawHTML}'''
       - Tags: '''${tags.join(", ")}'''
@@ -25,25 +26,9 @@ const getWordPressClassificationArgs = (
         "tags": "string[]"
       }}
     `,
-    schema: {
-      type: "object",
-      properties: {
-        categories: {
-          type: "array",
-          items: {
-            category: "string",
-          },
-        },
-        tags: {
-          type: "array",
-          items: {
-            tag: "string",
-          },
-        },
-      },
     },
-  },
-];
+  ],
+});
 
 export const wordPressPrompts = {
   getWordPressClassificationArgs,

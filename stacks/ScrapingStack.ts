@@ -16,6 +16,7 @@ import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import {
   ScrapsDB,
   ArticleTranslationsDB,
+  ProcessingJobs,
 } from "@hublog/core/src/ScrapingStack/db";
 import { TranslationJobsQueue } from "@hublog/core/src/ScrapingStack/queue";
 import { Duration } from "aws-cdk-lib";
@@ -30,7 +31,7 @@ export function ScrapingStack({ stack }: StackContext) {
     },
   });
 
-  const scrapsTable = new Table(stack, ScrapsDB.SCRAPS_DB_TABLE, {
+  const scrapsTable = new Table(stack, "Scraps", {
     fields: {
       source: "string",
       html: "string",
@@ -40,23 +41,30 @@ export function ScrapingStack({ stack }: StackContext) {
     primaryIndex: { partitionKey: "source" },
   });
 
-  const articleTranslationsTable = new Table(
-    stack,
-    ArticleTranslationsDB.ARTICLES_TRANSLATIONS_DB_TABLE,
-    {
-      fields: {
-        source: "string",
-        title: "string",
-        metaDescription: "string",
-        slug: "string",
-        html: "string",
-        language: "string",
-        createdAt: "string",
-        updatedAt: "string",
-      },
-      primaryIndex: { partitionKey: "source", sortKey: "language" },
-    }
-  );
+  const processingJobsTable = new Table(stack, "ProcessingJobs", {
+    fields: {
+      groupId: "string",
+      partIndex: "number",
+      totalParts: "number",
+      status: "string",
+      content: "string",
+    },
+    primaryIndex: { partitionKey: "groupId", sortKey: "partIndex" },
+  });
+
+  const translatedArticlesTable = new Table(stack, "TranslatedArticles", {
+    fields: {
+      source: "string",
+      title: "string",
+      metaDescription: "string",
+      slug: "string",
+      html: "string",
+      language: "string",
+      createdAt: "string",
+      updatedAt: "string",
+    },
+    primaryIndex: { partitionKey: "source", sortKey: "language" },
+  });
 
   const dlq = new Queue(stack, "DlqScrapingStack");
 
@@ -104,10 +112,16 @@ export function ScrapingStack({ stack }: StackContext) {
           bind: [translationJobsQueue],
         },
       },
-      "POST /gpt-open-ai-service-handler": {
-        function: {
-          handler:
-            "packages/functions/src/scrapingStack.GPTOpenAIServiceHandler",
+    },
+  });
+
+  api.addRoutes(stack, {
+    "POST /gpt-open-ai-service-handler": {
+      function: {
+        bind: [processingJobsTable, api],
+        handler: "packages/functions/src/scrapingStack.GPTOpenAIServiceHandler",
+        environment: {
+          OPEN_AI_SERVICE_URL: openAIServiceURL,
         },
       },
     },
@@ -141,11 +155,11 @@ export function ScrapingStack({ stack }: StackContext) {
   bus.subscribe(ScrapEventNames.Created, {
     handler: "packages/functions/src/scrapingStack.translationHandler",
     timeout: "5 minutes",
-    bind: [articleTranslationsTable, scrapsTable, translationJobsQueue],
+    bind: [translatedArticlesTable, scrapsTable, translationJobsQueue],
   });
 
   bus.subscribe(ContentAIEventNames.CreatedForTranslation, {
-    bind: [imageBucket, articleTranslationsTable],
+    bind: [imageBucket, translatedArticlesTable],
     handler: "packages/functions/src/scrapingStack.postWordPressHandler",
   });
 

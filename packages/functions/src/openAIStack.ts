@@ -19,11 +19,12 @@ export const gptAPIHandler = ApiHandler(async (evt) => {
     return {
       statusCode: 200,
     };
-  } catch (error: any) {
+  } catch (e: any) {
+    console.error(e);
     return {
       statusCode: 500,
       body: JSON.stringify({
-        message: `An error occurred while processing the GPT prompt request: ${error?.message}`,
+        message: `An error occurred while processing the GPT prompt request: ${e?.message}`,
       }),
     };
   }
@@ -31,15 +32,19 @@ export const gptAPIHandler = ApiHandler(async (evt) => {
 
 // TODO: if the model it's failing too much interrupt the SQS consumer, check APIRetry table
 export const gptPromptQueueConsumer = async (evt: SQSEvent) => {
-  const message = Utils.zodValidate(
-    evt.Records[0],
-    core.Queue.GPTPrompt.gptPromptQueueMessageSchema
-  );
+  try {
+    const message = Utils.zodValidate(
+      evt.Records[0],
+      core.Queue.GPTPrompt.gptPromptQueueMessageSchema
+    );
 
-  Utils.StateMachine.startStateMachine(
-    process.env.STATE_MACHINE ?? "",
-    message.body
-  );
+    Utils.StateMachine.startStateMachine(
+      process.env.STATE_MACHINE ?? "",
+      message.body
+    );
+  } catch (e) {
+    console.error(e);
+  }
 };
 
 export const gptPromptHandler = async (evt: any) => {
@@ -63,6 +68,8 @@ export const gptPromptHandler = async (evt: any) => {
   } catch (e: any) {
     const exponentialRetry = new core.DB.APIRetryDB();
     await exponentialRetry.incrementRetryCount(message.prompt.model);
+
+    console.error(e);
 
     // TODO: add logging to track errors
     switch (e.error.code) {
@@ -108,7 +115,8 @@ export const gptPromptSuccess = async (
       },
       body: JSON.stringify(res.response),
     });
-  } catch {
+  } catch (e) {
+    console.error(e);
     const res = Utils.zodValidate(
       evt.Payload,
       core.API.schemas.gptHandlerErrorResponseSchema

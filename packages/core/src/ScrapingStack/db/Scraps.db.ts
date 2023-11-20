@@ -8,7 +8,6 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { Table } from "sst/node/table";
 
-export const SCRAPS_DB_TABLE = "ScrapsDB";
 
 const client = new DynamoDBClient();
 const dynamoDB = DynamoDBDocumentClient.from(client);
@@ -27,7 +26,7 @@ export const createOrUpdateScrap = async (scrap: ScrapInput) => {
   const existingScrap = await getScrap(scrap.source);
   if (existingScrap) {
     const command = new UpdateCommand({
-      TableName: Table.ScrapsDB.tableName,
+      TableName: Table.Scraps.tableName,
       Key: { source: scrap.source },
       UpdateExpression: "set html = :h, updatedAt = :u",
       ExpressionAttributeValues: {
@@ -39,7 +38,7 @@ export const createOrUpdateScrap = async (scrap: ScrapInput) => {
     return await dynamoDB.send(command);
   } else {
     const command = new PutCommand({
-      TableName: Table.ScrapsDB.tableName,
+      TableName: Table.Scraps.tableName,
       Item: {
         ...scrap,
         createdAt: new Date().toISOString(),
@@ -53,7 +52,7 @@ export const createOrUpdateScrap = async (scrap: ScrapInput) => {
 
 export const getScrap = async (source: string): Promise<Scrap | null> => {
   const command = new GetCommand({
-    TableName: Table.ScrapsDB.tableName,
+    TableName: Table.Scraps.tableName,
     Key: { source },
   });
   const res = await dynamoDB.send(command);
@@ -62,7 +61,7 @@ export const getScrap = async (source: string): Promise<Scrap | null> => {
 
 export const deleteScrap = async (source: string) => {
   const command = new DeleteCommand({
-    TableName: Table.ScrapsDB.tableName,
+    TableName: Table.Scraps.tableName,
     Key: { source },
   });
   return await dynamoDB.send(command);

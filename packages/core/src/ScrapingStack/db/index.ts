@@ -1,2 +1,3 @@
-export * as ScrapsDB from "./ScrapsDB";
-export * as ArticleTranslationsDB from "./ArticlesTranslationDB";
+export * as ScrapsDB from "./Scraps.db";
+export * as ArticleTranslationsDB from "./ArticlesTranslation.db";
+export * as ProcessingJobs from "./ProcessingJobs.db";

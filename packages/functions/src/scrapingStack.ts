@@ -9,14 +9,9 @@ import {
   ImagesEvents,
 } from "@hublog/core/src/ScrapingStack/images";
 import { ScrapUtils } from "@hublog/core/src/ScrapingStack/scraping";
-import { WordPress } from "@hublog/core/src/ScrapingStack/wordpress";
-import {
-  ScrapsDB,
-  ArticleTranslationsDB,
-} from "@hublog/core/src/ScrapingStack/db";
+import { ScrapsDB } from "@hublog/core/src/ScrapingStack/db";
 import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import { APIUtils } from "@hublog/core/src/ScrapingStack/api";
-import { getFirstImgSrc } from "@hublog/core/utils/utils";
 import Utils from "@hublog/core/utils";
 import { SQSEvent } from "aws-lambda";
 import core from "@hublog/core/src/ScrapingStack";
@@ -136,21 +131,29 @@ export const translationHandler = async (message: SQSEvent) => {
   try {
     const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
 
-    await Promise.all(
-      headersArr.map(
-        async (text) =>
-          await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
-            method: "POST",
-            body: JSON.stringify({
-              prompt: Utils.GPT.contentPrompts.translateText(
-                text,
-                data.language
-              ),
-              callbackURL: `${Api.ScrapingStackAPI.url}/gpt-open-ai-service-handler`,
-            }),
-          })
-      )
-    );
+    for (let index = 0; index < headersArr.length; index++) {
+      const text = headersArr[index];
+      const url = new URL(
+        `${Api.ScrapingStackAPI.url}/gpt-open-ai-service-handler`
+      );
+      url.search = new URLSearchParams({
+        groupId: crypto.randomUUID(),
+        partIndex: index.toString(),
+        stage: "CLEAN",
+        language: data.language,
+        totalParts: headersArr.length.toString(),
+      }).toString();
+
+      console.log("1");
+
+      await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
+        method: "POST",
+        body: JSON.stringify({
+          prompt: Utils.GPT.contentPrompts.cleanContent(text),
+          callbackURL: url.toString(),
+        }),
+      });
+    }
 
     // const translatedHTML = (
     //   await Promise.all(
@@ -272,14 +275,75 @@ export const translationHandler = async (message: SQSEvent) => {
 // );
 
 export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
+  if (!evt.queryStringParameters) {
+    console.error("No query string parameters found");
+    return;
+  }
+
   try {
     const res = Utils.zodValidate(
       JSON.parse(evt.body ?? ""),
       Utils.GPT.responseSchema
     );
 
-    console.log(res.choices[0].message.content);
-  } catch {
+    const { groupId, partIndex, stage, language, totalParts } =
+      evt.queryStringParameters;
+
+    if (!groupId || !partIndex || !stage || !language || !totalParts) {
+      console.error("No query string parameters found");
+      return;
+    }
+
+    const url = new URL(
+      `${Api.ScrapingStackAPI.url}/gpt-open-ai-service-handler`
+    );
+
+    url.searchParams.set("groupId", groupId);
+    url.searchParams.set("partIndex", partIndex);
+    url.searchParams.set("totalParts", totalParts);
+    url.searchParams.set("language", language);
+
+    switch (stage) {
+      case "CLEAN":
+        url.searchParams.set("stage", "TRANSLATED");
+
+        await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
+          method: "POST",
+          body: JSON.stringify({
+            prompt: Utils.GPT.contentPrompts.translateText(
+              res.choices[0].message.content,
+              language
+            ),
+            callbackURL: url.toString(),
+          }),
+        });
+        break;
+      case "TRANSLATED":
+        url.searchParams.set("stage", "IMPROVED");
+
+        await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
+          method: "POST",
+          body: JSON.stringify({
+            prompt: Utils.GPT.contentPrompts.improveReadability(
+              res.choices[0].message.content,
+              language
+            ),
+            callbackURL: url.toString(),
+          }),
+        });
+        break;
+      case "IMPROVED":
+        core.DB.ProcessingJobs.createProcessingJob({
+          groupId,
+          partIndex: Number(partIndex),
+          totalParts: Number(totalParts),
+          status: "COMPLETED",
+          content: res.choices[0].message.content,
+        });
+        break;
+    }
+  } catch (e) {
+    console.error(e);
     const res = Utils.zodValidate(
       JSON.parse(evt.body ?? ""),
       Utils.error.errorSchema

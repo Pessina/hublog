@@ -59,16 +59,16 @@ export function OpenAIStack({ stack }: StackContext) {
   const dlq = new Queue(stack, "DlqOpenAIStack");
 
   const gptPromptQueue = new Queue(stack, "GPTPrompt", {
-    consumer: {
-      function: {
-        handler: "packages/functions/src/openAIStack.gptPromptQueueConsumer",
-        bind: [],
-        environment: {
-          STATE_MACHINE: retryStateMachine.stateMachineArn,
-        },
-        permissions: ["states:StartExecution"],
-      },
-    },
+    // consumer: {
+    //   function: {
+    //     handler: "packages/functions/src/openAIStack.gptPromptQueueConsumer",
+    //     bind: [],
+    //     environment: {
+    //       STATE_MACHINE: retryStateMachine.stateMachineArn,
+    //     },
+    //     permissions: ["states:StartExecution"],
+    //   },
+    // },
     cdk: {
       queue: {
         deadLetterQueue: {
@@ -80,6 +80,12 @@ export function OpenAIStack({ stack }: StackContext) {
   });
 
   const api = new Api(stack, "OpenAIStackAPI", {
+    defaults: {
+      throttle: {
+        rate: 10000,
+        burst: 5000,
+      },
+    },
     routes: {
       "POST /chatgpt": {
         function: {

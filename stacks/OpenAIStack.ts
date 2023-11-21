@@ -20,6 +20,7 @@ export function OpenAIStack({ stack }: StackContext) {
   const gptPromptHandler = new Function(stack, "GPTPromptHandler", {
     handler: "packages/functions/src/openAIStack.gptPromptHandler",
     bind: [OPEN_AI_KEY, APIRetryTable],
+    timeout: "1 minute",
   });
 
   const gptPromptSuccess = new Function(stack, "GPTPromptSuccess", {
@@ -38,9 +39,9 @@ export function OpenAIStack({ stack }: StackContext) {
         lambdaFunction: gptPromptHandler,
       })
         .addRetry({
-          interval: Duration.seconds(5),
+          interval: Duration.seconds(60),
           backoffRate: 2.0,
-          maxAttempts: 2,
+          maxAttempts: 3,
         })
         .addCatch(
           new LambdaInvoke(stack, "Invoke GPT Prompt Fail Handler", {
@@ -53,26 +54,26 @@ export function OpenAIStack({ stack }: StackContext) {
           })
         )
     ),
-    timeout: Duration.minutes(5),
+    timeout: Duration.minutes(10),
   });
 
   const dlq = new Queue(stack, "DlqOpenAIStack");
 
   const gptPromptQueue = new Queue(stack, "GPTPrompt", {
-    // consumer: {
-    //   function: {
-    //     handler: "packages/functions/src/openAIStack.gptPromptQueueConsumer",
-    //     bind: [],
-    //     environment: {
-    //       STATE_MACHINE: retryStateMachine.stateMachineArn,
-    //     },
-    //     permissions: ["states:StartExecution"],
-    //   },
-    // },
+    consumer: {
+      function: {
+        handler: "packages/functions/src/openAIStack.gptPromptQueueConsumer",
+        bind: [],
+        environment: {
+          STATE_MACHINE: retryStateMachine.stateMachineArn,
+        },
+        permissions: ["states:StartExecution"],
+      },
+    },
     cdk: {
       queue: {
         deadLetterQueue: {
-          maxReceiveCount: 2,
+          maxReceiveCount: 5,
           queue: dlq.cdk.queue,
         },
       },

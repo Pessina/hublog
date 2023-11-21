@@ -144,8 +144,6 @@ export const translationHandler = async (message: SQSEvent) => {
         totalParts: headersArr.length.toString(),
       }).toString();
 
-      console.log("1");
-
       await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
         method: "POST",
         body: JSON.stringify({

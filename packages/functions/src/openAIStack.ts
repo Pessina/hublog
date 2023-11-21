@@ -61,6 +61,11 @@ export const gptPromptHandler = async (evt: any) => {
       messages: message.prompt.messages,
     });
 
+    console.log("gptPromptHandler", {
+      callbackURL: message.callbackURL,
+      response: res.choices[0].message.content,
+    });
+
     return {
       callbackURL: message.callbackURL,
       response: res,
@@ -104,6 +109,11 @@ export const gptPromptSuccess = async (
       evt.Payload,
       core.API.schemas.gptHandlerSuccessResponseSchema
     );
+
+    console.log("gptPromptSuccess", {
+      callbackURL: res.callbackURL,
+      response: res.response.choices[0].message.content,
+    });
 
     const exponentialRetry = new core.DB.APIRetryDB();
     await exponentialRetry.resetRetryCount(res.response.model);

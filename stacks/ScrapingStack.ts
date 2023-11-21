@@ -41,6 +41,8 @@ export function ScrapingStack({ stack }: StackContext) {
     primaryIndex: { partitionKey: "source" },
   });
 
+  // Update it to handle save all translation jobs info, language, targetBlog, etc
+  // Set a consumer to the Jobs Translation Queue, that will read a job and add a entry on this DB with all the metadata
   const processingJobsTable = new Table(stack, "ProcessingJobs", {
     fields: {
       groupId: "string",
@@ -74,11 +76,11 @@ export function ScrapingStack({ stack }: StackContext) {
     {
       cdk: {
         queue: {
-          deliveryDelay: Duration.seconds(5),
-          visibilityTimeout: Duration.seconds(30),
+          deliveryDelay: Duration.seconds(10),
+          visibilityTimeout: Duration.seconds(5),
           deadLetterQueue: {
             queue: dlq.cdk.queue,
-            maxReceiveCount: 2,
+            maxReceiveCount: 5,
           },
         },
       },

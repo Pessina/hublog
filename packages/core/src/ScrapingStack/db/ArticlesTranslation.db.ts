@@ -34,7 +34,7 @@ export const createOrUpdateArticleTranslation = async (
   );
   if (existingArticleTranslation) {
     const command = new UpdateCommand({
-      TableName: Table.TranslatedArticles.tableName,
+      TableName: Table.TranslatedArticlesTable.tableName,
       Key: {
         source: articleTranslation.source,
         language: articleTranslation.language,
@@ -53,7 +53,7 @@ export const createOrUpdateArticleTranslation = async (
     return await dynamoDB.send(command);
   } else {
     const command = new PutCommand({
-      TableName: Table.TranslatedArticles.tableName,
+      TableName: Table.TranslatedArticlesTable.tableName,
       Item: {
         ...articleTranslation,
         createdAt: new Date().toISOString(),
@@ -70,7 +70,7 @@ export const getArticleTranslation = async (
   language: string
 ): Promise<ArticleTranslation | null> => {
   const command = new GetCommand({
-    TableName: Table.TranslatedArticles.tableName,
+    TableName: Table.TranslatedArticlesTable.tableName,
     Key: { source, language },
   });
   const res = await dynamoDB.send(command);
@@ -79,7 +79,7 @@ export const getArticleTranslation = async (
 
 export const deleteArticleTranslation = async (source: string) => {
   const command = new DeleteCommand({
-    TableName: Table.TranslatedArticles.tableName,
+    TableName: Table.TranslatedArticlesTable.tableName,
     Key: { source },
   });
   return await dynamoDB.send(command);

@@ -13,8 +13,8 @@ import { ScrapsDB } from "@hublog/core/src/ScrapingStack/db";
 import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import { APIUtils } from "@hublog/core/src/ScrapingStack/api";
 import Utils from "@hublog/core/utils";
-import { SQSEvent } from "aws-lambda";
 import core from "@hublog/core/src/ScrapingStack";
+import { DynamoDBStreamEvent, SQSEvent } from "aws-lambda";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   try {
@@ -116,20 +116,29 @@ export const imageUploadHandler = EventHandler(
   }
 );
 
-export const translationHandler = async (message: SQSEvent) => {
-  const { body } = message.Records[0];
-  const data = Utils.zodValidate(
-    JSON.parse(body),
-    core.Queue.TranslationJobsQueue.translationJobsQueueSchema
-  );
-
-  let scrap = await ScrapsDB.getScrap(data.originURL);
-  if (!scrap) {
-    throw new Error(`No scrap found for URL ${data.originURL}`);
+export const translationJobTableConsumer = async (evt: DynamoDBStreamEvent) => {
+  const record = evt.Records[0];
+  if (record.eventName === "INSERT") {
+    const id = record.dynamodb?.NewImage?.id.S;
+    if (id) {
+      core.Queue.TranslationJobs.emitMessage({ id });
+    }
   }
+};
 
-  try {
-    const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
+export const translationJobQueueConsumer = async (evt: SQSEvent) => {
+  const body = Utils.zodValidate(
+    JSON.parse(evt.Records[0]?.body),
+    core.Queue.TranslationJobs.translationJobsQueueSchema
+  );
+  if (body) {
+    const res = await core.DB.TranslationJobs.get(body.id);
+    if (!res) throw new Error(`No translation job found for ${body.id}`);
+
+    let scrap = await ScrapsDB.getScrap(res?.originURL);
+    if (!scrap) throw new Error(`No scrap found for ${res?.originURL}`);
+
+    const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html).slice(0, 10);
 
     for (let index = 0; index < headersArr.length; index++) {
       const text = headersArr[index];
@@ -137,10 +146,9 @@ export const translationHandler = async (message: SQSEvent) => {
         `${Api.ScrapingStackAPI.url}/gpt-open-ai-service-handler`
       );
       url.search = new URLSearchParams({
-        groupId: crypto.randomUUID(),
+        groupId: body.id,
         partIndex: index.toString(),
         stage: "CLEAN",
-        language: data.language,
         totalParts: headersArr.length.toString(),
       }).toString();
 
@@ -152,50 +160,46 @@ export const translationHandler = async (message: SQSEvent) => {
         }),
       });
     }
-
-    // const translatedHTML = (
-    //   await Promise.all(
-    //     headersArr.map(async (h) => {
-    //       const cleanText = await ContentAIUtils.cleanContent(h);
-    //       const translated = await ContentAIUtils.translateText(
-    //         cleanText,
-    //         data.language
-    //       );
-    //       const improvedText = await ContentAIUtils.improveReadability(
-    //         translated,
-    //         data.language
-    //       );
-
-    //       return ScrapUtils.trimAndRemoveQuotes(improvedText);
-    //     })
-    //   )
-    // ).join(" ");
-
-    // const SEOArgs = await ContentAIUtils.getSEOArgs(
-    //   translatedHTML,
-    //   data.language
-    // );
-
-    // await ArticleTranslationsDB.createOrUpdateArticleTranslation({
-    //   source: data.originURL,
-    //   title: SEOArgs.title,
-    //   metaDescription: SEOArgs.metaDescription,
-    //   slug: SEOArgs.slug,
-    //   html: translatedHTML,
-    //   language: data.language,
-    // });
-
-    // await ContentAIEvents.CreatedForTranslation.publish({
-    //   url: data.originURL,
-    //   language: data.language,
-    //   email: data.email,
-    //   password: data.password,
-    //   blogURL: data.blogURL,
-    // });
-  } catch (error: any) {
-    console.error(`Error translating ${data.originURL}: ${error}`);
   }
 };
+
+// export const translationHandler = async (evt: any) => {
+// const translatedHTML = (
+//   await Promise.all(
+//     headersArr.map(async (h) => {
+//       const cleanText = await ContentAIUtils.cleanContent(h);
+//       const translated = await ContentAIUtils.translateText(
+//         cleanText,
+//         data.language
+//       );
+//       const improvedText = await ContentAIUtils.improveReadability(
+//         translated,
+//         data.language
+//       );
+//       return ScrapUtils.trimAndRemoveQuotes(improvedText);
+//     })
+//   )
+// ).join(" ");
+// const SEOArgs = await ContentAIUtils.getSEOArgs(
+//   translatedHTML,
+//   data.language
+// );
+// await ArticleTranslationsDB.createOrUpdateArticleTranslation({
+//   source: data.originURL,
+//   title: SEOArgs.title,
+//   metaDescription: SEOArgs.metaDescription,
+//   slug: SEOArgs.slug,
+//   html: translatedHTML,
+//   language: data.language,
+// });
+// await ContentAIEvents.CreatedForTranslation.publish({
+//   url: data.originURL,
+//   language: data.language,
+//   email: data.email,
+//   password: data.password,
+//   blogURL: data.blogURL,
+// });
+// };
 
 // export const postWordPressHandler = EventHandler(
 //   ContentAIEvents.CreatedForTranslation,
@@ -284,10 +288,15 @@ export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
       Utils.GPT.responseSchema
     );
 
-    const { groupId, partIndex, stage, language, totalParts } =
-      evt.queryStringParameters;
+    const { groupId, partIndex, stage, totalParts } = evt.queryStringParameters;
 
-    if (!groupId || !partIndex || !stage || !language || !totalParts) {
+    if (
+      !groupId ||
+      partIndex === null ||
+      partIndex === undefined ||
+      !stage ||
+      !totalParts
+    ) {
       console.error("No query string parameters found");
       return;
     }
@@ -299,7 +308,10 @@ export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
     url.searchParams.set("groupId", groupId);
     url.searchParams.set("partIndex", partIndex);
     url.searchParams.set("totalParts", totalParts);
-    url.searchParams.set("language", language);
+
+    const translationJob = await core.DB.TranslationJobs.get(groupId);
+    if (!translationJob)
+      throw new Error(`No translation job found for ${groupId}`);
 
     switch (stage) {
       case "CLEAN":
@@ -310,7 +322,7 @@ export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
           body: JSON.stringify({
             prompt: Utils.GPT.contentPrompts.translateText(
               res.choices[0].message.content,
-              language
+              translationJob?.language
             ),
             callbackURL: url.toString(),
           }),
@@ -324,7 +336,7 @@ export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
           body: JSON.stringify({
             prompt: Utils.GPT.contentPrompts.improveReadability(
               res.choices[0].message.content,
-              language
+              translationJob?.language
             ),
             callbackURL: url.toString(),
           }),

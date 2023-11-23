@@ -1,1 +1,1 @@
-export * as TranslationJobsQueue from "./TranslationJobsQueue";
+export * as TranslationJobs from "./TranslationJobs.queue";

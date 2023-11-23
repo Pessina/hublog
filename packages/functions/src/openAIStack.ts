@@ -14,7 +14,7 @@ export const gptAPIHandler = ApiHandler(async (evt) => {
       core.API.schemas.gptPromptRequestSchema
     );
 
-    core.Queue.GPTPrompt.emit(req);
+    await core.Queue.GPTPrompt.emit(req);
 
     return {
       statusCode: 200,
@@ -38,7 +38,7 @@ export const gptPromptQueueConsumer = async (evt: SQSEvent) => {
       core.Queue.GPTPrompt.gptPromptQueueMessageSchema
     );
 
-    Utils.StateMachine.startStateMachine(
+    await Utils.StateMachine.startStateMachine(
       process.env.STATE_MACHINE ?? "",
       message.body
     );
@@ -61,11 +61,6 @@ export const gptPromptHandler = async (evt: any) => {
       messages: message.prompt.messages,
     });
 
-    console.log("gptPromptHandler", {
-      callbackURL: message.callbackURL,
-      response: res.choices[0].message.content,
-    });
-
     return {
       callbackURL: message.callbackURL,
       response: res,
@@ -74,7 +69,7 @@ export const gptPromptHandler = async (evt: any) => {
     const exponentialRetry = new core.DB.APIRetryDB();
     await exponentialRetry.incrementRetryCount(message.prompt.model);
 
-    console.error(e);
+    console.log(e);
 
     // TODO: add logging to track errors
     switch (e.error.code) {
@@ -109,11 +104,6 @@ export const gptPromptSuccess = async (
       evt.Payload,
       core.API.schemas.gptHandlerSuccessResponseSchema
     );
-
-    console.log("gptPromptSuccess", {
-      callbackURL: res.callbackURL,
-      response: res.response.choices[0].message.content,
-    });
 
     const exponentialRetry = new core.DB.APIRetryDB();
     await exponentialRetry.resetRetryCount(res.response.model);

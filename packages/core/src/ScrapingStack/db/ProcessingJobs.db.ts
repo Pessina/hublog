@@ -17,7 +17,7 @@ export const createProcessingJob = async (args: {
   content: string;
 }) => {
   const command = new PutCommand({
-    TableName: Table.ProcessingJobs.tableName,
+    TableName: Table.ProcessingJobsTable.tableName,
     Item: {
       groupId: args.groupId,
       partIndex: args.partIndex,
@@ -31,7 +31,7 @@ export const createProcessingJob = async (args: {
 
 export const checkAndGetProcessingJobs = async (groupId: string) => {
   const command = new QueryCommand({
-    TableName: Table.ProcessingJobs.tableName,
+    TableName: Table.ProcessingJobsTable.tableName,
     KeyConditionExpression: "groupId = :groupId",
     ExpressionAttributeValues: {
       ":groupId": groupId,

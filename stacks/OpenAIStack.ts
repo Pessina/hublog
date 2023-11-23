@@ -3,7 +3,6 @@ import { LambdaInvoke } from "aws-cdk-lib/aws-stepfunctions-tasks";
 import { DefinitionBody, StateMachine } from "aws-cdk-lib/aws-stepfunctions";
 import { StackContext } from "sst/constructs";
 import { Duration } from "aws-cdk-lib";
-import core from "@hublog/core/src/OpenAIStack";
 
 export function OpenAIStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
@@ -17,10 +16,12 @@ export function OpenAIStack({ stack }: StackContext) {
     primaryIndex: { partitionKey: "id" },
   });
 
+  // TODO: Open AI takes 10 min to timeout but the lambda does not timeout
+  // You can check on CloudWatch, there is no event of timeout of the lambda function for this scenario
   const gptPromptHandler = new Function(stack, "GPTPromptHandler", {
     handler: "packages/functions/src/openAIStack.gptPromptHandler",
     bind: [OPEN_AI_KEY, APIRetryTable],
-    timeout: "1 minute",
+    timeout: "30 seconds",
   });
 
   const gptPromptSuccess = new Function(stack, "GPTPromptSuccess", {
@@ -41,7 +42,7 @@ export function OpenAIStack({ stack }: StackContext) {
         .addRetry({
           interval: Duration.seconds(60),
           backoffRate: 2.0,
-          maxAttempts: 3,
+          maxAttempts: 5,
         })
         .addCatch(
           new LambdaInvoke(stack, "Invoke GPT Prompt Fail Handler", {
@@ -51,10 +52,14 @@ export function OpenAIStack({ stack }: StackContext) {
         .next(
           new LambdaInvoke(stack, "Invoke GPT Prompt Success Handler", {
             lambdaFunction: gptPromptSuccess,
+          }).addRetry({
+            interval: Duration.seconds(3),
+            backoffRate: 2.0,
+            maxAttempts: 5,
           })
         )
     ),
-    timeout: Duration.minutes(10),
+    timeout: Duration.minutes(32),
   });
 
   const dlq = new Queue(stack, "DlqOpenAIStack");
@@ -81,12 +86,6 @@ export function OpenAIStack({ stack }: StackContext) {
   });
 
   const api = new Api(stack, "OpenAIStackAPI", {
-    defaults: {
-      throttle: {
-        rate: 10000,
-        burst: 5000,
-      },
-    },
     routes: {
       "POST /chatgpt": {
         function: {

@@ -2,7 +2,7 @@ import xml2js from "xml2js";
 import axios from "axios";
 import { Events } from "./events";
 import { DestinationBlog } from "../api/validation";
-import { TranslationJobsQueue } from "../queue";
+import core from "../index";
 
 const SITEMAP_REGEX = /https?:\/\/.*\/.*sitemap.*\.xml$/i;
 
@@ -60,8 +60,11 @@ export async function createEventsForUrls(
   for (const url of urls) {
     try {
       for (const d of destinationBlogs) {
-        await TranslationJobsQueue.emitMessage({
-          ...d,
+        core.DB.TranslationJobs.create({
+          blogURL: d.blogURL,
+          language: d.language,
+          email: d.email,
+          password: d.password,
           originURL: url,
         });
       }

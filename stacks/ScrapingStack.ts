@@ -58,6 +58,7 @@ export function ScrapingStack({ stack }: StackContext) {
       content: "string",
     },
     primaryIndex: { partitionKey: "groupId", sortKey: "partIndex" },
+    stream: true,
   });
 
   const translatedArticlesTable = new Table(stack, "TranslatedArticlesTable", {
@@ -111,7 +112,14 @@ export function ScrapingStack({ stack }: StackContext) {
       function: {
         handler:
           "packages/functions/src/scrapingStack.translationJobQueueConsumer",
-        bind: [translationJobsTable, scrapsTable, scrapsTable, bus, api],
+        bind: [
+          translationJobsTable,
+          scrapsTable,
+          scrapsTable,
+          bus,
+          api,
+          processingJobsTable,
+        ],
         environment: {
           OPEN_AI_SERVICE_URL: openAIServiceURL,
         },
@@ -139,18 +147,32 @@ export function ScrapingStack({ stack }: StackContext) {
     }
   );
 
+  const processingJobsTableConsumer = new Function(
+    stack,
+    "processingJobsTableConsumer",
+    {
+      handler:
+        "packages/functions/src/scrapingStack.processingJobsTableConsumer",
+      bind: [translationJobsTable, api],
+      environment: {
+        OPEN_AI_SERVICE_URL: openAIServiceURL,
+      },
+    }
+  );
+
   translationJobsTable.addConsumers(stack, {
     translationJobTableConsumer: translationJobTableConsumer,
+  });
+
+  processingJobsTable.addConsumers(stack, {
+    processingJobsTableConsumer: processingJobsTableConsumer,
   });
 
   api.addRoutes(stack, {
     "POST /gpt-open-ai-service-handler": {
       function: {
-        bind: [processingJobsTable, api, translationJobsTable],
+        bind: [processingJobsTable],
         handler: "packages/functions/src/scrapingStack.GPTOpenAIServiceHandler",
-        environment: {
-          OPEN_AI_SERVICE_URL: openAIServiceURL,
-        },
       },
     },
   });

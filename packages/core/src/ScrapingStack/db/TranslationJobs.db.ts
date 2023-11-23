@@ -24,7 +24,7 @@ type TranslationJobsSchema = TranslationJobsSchemaInput & {
 const client = new DynamoDBClient();
 const dynamoDB = DynamoDBDocumentClient.from(client);
 
-const get = async (id: string): Promise<TranslationJobsSchemaInput | null> => {
+const get = async (id: string): Promise<TranslationJobsSchema | null> => {
   const command = new GetCommand({
     TableName: Table.TranslationJobsTable.tableName,
     Key: { id },

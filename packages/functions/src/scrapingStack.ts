@@ -15,6 +15,7 @@ import { APIUtils } from "@hublog/core/src/ScrapingStack/api";
 import Utils from "@hublog/core/utils";
 import core from "@hublog/core/src/ScrapingStack";
 import { DynamoDBStreamEvent, SQSEvent } from "aws-lambda";
+import { GPTPrompt } from "@hublog/core/utils/GPT/schemas/types";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   try {
@@ -127,37 +128,34 @@ export const translationJobTableConsumer = async (evt: DynamoDBStreamEvent) => {
 };
 
 export const translationJobQueueConsumer = async (evt: SQSEvent) => {
-  const body = Utils.zodValidate(
+  const translationJobMessage = Utils.zodValidate(
     JSON.parse(evt.Records[0]?.body),
     core.Queue.TranslationJobs.translationJobsQueueSchema
   );
-  if (body) {
-    const res = await core.DB.TranslationJobs.get(body.id);
-    if (!res) throw new Error(`No translation job found for ${body.id}`);
+  if (translationJobMessage) {
+    const translationJob = await core.DB.TranslationJobs.get(
+      translationJobMessage.id
+    );
+    if (!translationJob)
+      throw new Error(
+        `No translation job found for ${translationJobMessage.id}`
+      );
 
-    let scrap = await ScrapsDB.getScrap(res?.originURL);
-    if (!scrap) throw new Error(`No scrap found for ${res?.originURL}`);
+    let scrap = await ScrapsDB.getScrap(translationJob?.originURL);
+    if (!scrap)
+      throw new Error(`No scrap found for ${translationJob?.originURL}`);
 
-    const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html).slice(0, 10);
+    const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html).slice(0, 1);
 
     for (let index = 0; index < headersArr.length; index++) {
       const text = headersArr[index];
-      const url = new URL(
-        `${Api.ScrapingStackAPI.url}/gpt-open-ai-service-handler`
-      );
-      url.search = new URLSearchParams({
-        groupId: body.id,
-        partIndex: index.toString(),
-        stage: "CLEAN",
-        totalParts: headersArr.length.toString(),
-      }).toString();
 
-      await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
-        method: "POST",
-        body: JSON.stringify({
-          prompt: Utils.GPT.contentPrompts.cleanContent(text),
-          callbackURL: url.toString(),
-        }),
+      await core.DB.ProcessingJobs.createProcessingJob({
+        groupId: translationJob.id,
+        partIndex: index,
+        totalParts: headersArr.length,
+        status: "INITIAL",
+        content: text,
       });
     }
   }
@@ -276,89 +274,100 @@ export const translationJobQueueConsumer = async (evt: SQSEvent) => {
 //   }
 // );
 
-export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
-  if (!evt.queryStringParameters) {
-    console.error("No query string parameters found");
-    return;
-  }
+export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
+  const record = evt.Records[0];
 
-  try {
-    const res = Utils.zodValidate(
-      JSON.parse(evt.body ?? ""),
-      Utils.GPT.responseSchema
+  if (record.eventName === "INSERT") {
+    const processingJob = Utils.zodValidate(
+      {
+        groupId: record.dynamodb?.NewImage?.groupId.S,
+        partIndex: Number(record.dynamodb?.NewImage?.partIndex.N),
+        totalParts: Number(record.dynamodb?.NewImage?.totalParts.N),
+        status: record.dynamodb?.NewImage?.status.S,
+        content: record.dynamodb?.NewImage?.content.S,
+      },
+      core.DB.ProcessingJobs.ProcessingJobSchema
     );
-
-    const { groupId, partIndex, stage, totalParts } = evt.queryStringParameters;
-
-    if (
-      !groupId ||
-      partIndex === null ||
-      partIndex === undefined ||
-      !stage ||
-      !totalParts
-    ) {
-      console.error("No query string parameters found");
-      return;
-    }
 
     const url = new URL(
       `${Api.ScrapingStackAPI.url}/gpt-open-ai-service-handler`
     );
 
-    url.searchParams.set("groupId", groupId);
-    url.searchParams.set("partIndex", partIndex);
-    url.searchParams.set("totalParts", totalParts);
+    url.searchParams.set("groupId", processingJob.groupId);
+    url.searchParams.set("partIndex", processingJob.partIndex.toString());
+    url.searchParams.set("totalParts", processingJob.totalParts.toString());
 
-    const translationJob = await core.DB.TranslationJobs.get(groupId);
-    if (!translationJob)
-      throw new Error(`No translation job found for ${groupId}`);
-
-    switch (stage) {
-      case "CLEAN":
-        url.searchParams.set("stage", "TRANSLATED");
-
-        await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
-          method: "POST",
-          body: JSON.stringify({
-            prompt: Utils.GPT.contentPrompts.translateText(
-              res.choices[0].message.content,
-              translationJob?.language
-            ),
-            callbackURL: url.toString(),
-          }),
-        });
-        break;
-      case "TRANSLATED":
-        url.searchParams.set("stage", "IMPROVED");
-
-        await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
-          method: "POST",
-          body: JSON.stringify({
-            prompt: Utils.GPT.contentPrompts.improveReadability(
-              res.choices[0].message.content,
-              translationJob?.language
-            ),
-            callbackURL: url.toString(),
-          }),
-        });
-        break;
-      case "IMPROVED":
-        core.DB.ProcessingJobs.createProcessingJob({
-          groupId,
-          partIndex: Number(partIndex),
-          totalParts: Number(totalParts),
-          status: "COMPLETED",
-          content: res.choices[0].message.content,
-        });
-        break;
-    }
-  } catch (e) {
-    console.error(e);
-    const res = Utils.zodValidate(
-      JSON.parse(evt.body ?? ""),
-      Utils.error.errorSchema
+    const translationJob = await core.DB.TranslationJobs.get(
+      processingJob.groupId
     );
 
-    console.log(res.errorCode);
+    if (!translationJob)
+      throw new Error(`No translation job found for ${processingJob.groupId}`);
+
+    let prompt: GPTPrompt | undefined = undefined;
+
+    switch (processingJob.status) {
+      case "INITIAL":
+        url.searchParams.set("status", "CLEAN");
+        prompt = Utils.GPT.contentPrompts.cleanContent(processingJob.content);
+        break;
+      case "CLEAN":
+        url.searchParams.set("status", "TRANSLATED");
+        prompt = Utils.GPT.contentPrompts.translateText(
+          processingJob.content,
+          translationJob?.language
+        );
+        break;
+      case "TRANSLATED":
+        url.searchParams.set("status", "IMPROVED");
+        prompt = Utils.GPT.contentPrompts.improveReadability(
+          processingJob.content,
+          translationJob?.language
+        );
+        break;
+    }
+
+    if (!prompt) throw new Error(`No prompt found for ${processingJob}`);
+
+    await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
+      method: "POST",
+      body: JSON.stringify({
+        prompt,
+        callbackURL: url.toString(),
+      }),
+    });
   }
+};
+
+export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
+  if (!evt.queryStringParameters)
+    throw new Error("No query string parameters found");
+
+  const res = Utils.zodValidate(
+    JSON.parse(evt.body ?? ""),
+    Utils.GPT.responseSchema
+  );
+
+  const { groupId, status, partIndex, totalParts } = evt.queryStringParameters;
+
+  if (
+    !groupId ||
+    !status ||
+    partIndex === undefined ||
+    partIndex === null ||
+    totalParts === undefined ||
+    totalParts === null
+  ) {
+    throw new Error(
+      `Invalid or missing parameters. ${evt.queryStringParameters} `
+    );
+  }
+
+  await core.DB.ProcessingJobs.createProcessingJob({
+    groupId,
+    partIndex: Number(partIndex),
+    totalParts: Number(totalParts),
+    status,
+    content: res.choices[0].message.content,
+  });
 });

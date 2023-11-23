@@ -276,8 +276,9 @@ export const translationJobQueueConsumer = async (evt: SQSEvent) => {
 
 export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
   const record = evt.Records[0];
+  console.log(record.eventName);
 
-  if (record.eventName === "INSERT") {
+  if (record.eventName === "INSERT" || record.eventName === "MODIFY") {
     const processingJob = Utils.zodValidate(
       {
         groupId: record.dynamodb?.NewImage?.groupId.S,

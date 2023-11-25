@@ -37,6 +37,35 @@ export const createProcessingJob = async (
   await dynamoDB.send(command);
 };
 
+export const getProcessingJob = async (
+  groupId: string,
+  partIndex: number
+): Promise<ProcessingJob | null> => {
+  const command = new QueryCommand({
+    TableName: Table.ProcessingJobsTable.tableName,
+    KeyConditionExpression: "groupId = :groupId and partIndex = :partIndex",
+    ExpressionAttributeValues: {
+      ":groupId": groupId,
+      ":partIndex": partIndex,
+    },
+  });
+
+  const data = await dynamoDB.send(command);
+
+  if (data.Items && data.Items.length > 0) {
+    const item = data.Items[0];
+    return {
+      groupId: item.groupId.S,
+      partIndex: Number(item.partIndex.N),
+      totalParts: Number(item.totalParts.N),
+      status: item.status.S,
+      content: item.content.S,
+    };
+  }
+
+  return null;
+};
+
 export const checkAndGetProcessingJobs = async (
   groupId: string
 ): Promise<Array<ProcessingJob> | null> => {

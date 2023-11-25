@@ -30,7 +30,6 @@ export const gptAPIHandler = ApiHandler(async (evt) => {
   }
 });
 
-// TODO: if the model it's failing too much interrupt the SQS consumer, check APIRetry table
 export const gptPromptQueueConsumer = async (evt: SQSEvent) => {
   const message = Utils.zodValidate(
     evt.Records[0],
@@ -57,18 +56,11 @@ export const gptPromptHandler = async (evt: any) => {
       messages: message.prompt.messages,
     });
 
-    console.log("3");
-
     return {
       callbackURL: message.callbackURL,
       response: res,
     };
   } catch (e: any) {
-    const exponentialRetry = new core.DB.APIRetryDB();
-    await exponentialRetry.incrementRetryCount(message.prompt.model);
-
-    console.log(e);
-
     // TODO: add logging to track errors
     switch (e.error.code) {
       case "context_length_exceeded":
@@ -97,53 +89,20 @@ export const gptPromptHandler = async (evt: any) => {
 export const gptPromptSuccess = async (
   evt: Lambda.Types.InvocationResponse
 ) => {
-  try {
-    const res = Utils.zodValidate(
-      evt.Payload,
-      core.API.schemas.gptHandlerSuccessResponseSchema
-    );
+  const res = Utils.zodValidate(
+    evt.Payload,
+    core.API.schemas.gptHandlerSuccessResponseSchema
+  );
 
-    const exponentialRetry = new core.DB.APIRetryDB();
-    await exponentialRetry.resetRetryCount(res.response.model);
-
-    await fetch(res.callbackURL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(res.response),
-    });
-
-    console.log("4");
-  } catch (e) {
-    console.error(e);
-    const res = Utils.zodValidate(
-      evt.Payload,
-      core.API.schemas.gptHandlerErrorResponseSchema
-    );
-
-    await fetch(res.callbackURL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(res.response),
-    });
-  }
-};
-
-export const gptPromptFail = async (evt: any) => {
-  const cause = JSON.parse(evt.Cause);
-  const callbackURL = JSON.parse(cause.errorMessage).callbackURL;
-
-  await fetch(callbackURL, {
+  const response = await fetch(res.callbackURL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      message: "Error invoking GPT Prompt Handler",
-      errorCode: 500,
-    }),
+    body: JSON.stringify(res.response),
   });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
 };

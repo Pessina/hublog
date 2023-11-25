@@ -14,6 +14,7 @@ import { ImagesEventNames } from "@hublog/core/src/ScrapingStack/images";
 import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import { Duration } from "aws-cdk-lib";
 import { OpenAIStack } from "./OpenAIStack";
+import { StartingPosition } from "aws-cdk-lib/aws-lambda";
 
 export function ScrapingStack({ stack }: StackContext) {
   const { ApiEndpoint: openAIServiceURL } = use(OpenAIStack);
@@ -115,7 +116,6 @@ export function ScrapingStack({ stack }: StackContext) {
         bind: [
           translationJobsTable,
           scrapsTable,
-          scrapsTable,
           bus,
           api,
           processingJobsTable,
@@ -147,25 +147,27 @@ export function ScrapingStack({ stack }: StackContext) {
     }
   );
 
-  const processingJobsTableConsumer = new Function(
-    stack,
-    "processingJobsTableConsumer",
-    {
-      handler:
-        "packages/functions/src/scrapingStack.processingJobsTableConsumer",
-      bind: [translationJobsTable, api],
-      environment: {
-        OPEN_AI_SERVICE_URL: openAIServiceURL,
-      },
-    }
-  );
-
   translationJobsTable.addConsumers(stack, {
     translationJobTableConsumer: translationJobTableConsumer,
   });
 
   processingJobsTable.addConsumers(stack, {
-    processingJobsTableConsumer: processingJobsTableConsumer,
+    processingJobsTableConsumer: {
+      function: {
+        handler:
+          "packages/functions/src/scrapingStack.processingJobsTableConsumer",
+        bind: [translationJobsTable, api],
+        environment: {
+          OPEN_AI_SERVICE_URL: openAIServiceURL,
+        },
+      },
+      cdk: {
+        eventSource: {
+          startingPosition: StartingPosition.TRIM_HORIZON,
+          batchSize: 1,
+        },
+      },
+    },
   });
 
   api.addRoutes(stack, {

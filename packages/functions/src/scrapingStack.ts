@@ -14,7 +14,7 @@ import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import { APIUtils } from "@hublog/core/src/ScrapingStack/api";
 import Utils from "@hublog/core/utils";
 import core from "@hublog/core/src/ScrapingStack";
-import { DynamoDBStreamEvent, SQSEvent } from "aws-lambda";
+import { DynamoDBRecord, DynamoDBStreamEvent, SQSEvent } from "aws-lambda";
 import { GPTPrompt } from "@hublog/core/utils/GPT/schemas/types";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
@@ -147,7 +147,7 @@ export const translationJobQueueConsumer = async (evt: SQSEvent) => {
     if (!scrap)
       throw new Error(`No scrap found for ${translationJob?.originURL}`);
 
-    const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html).slice(0, 5);
+    const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
 
     for (let index = 0; index < headersArr.length; index++) {
       const text = headersArr[index];
@@ -281,8 +281,6 @@ export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
   );
 
   for (const r of records) {
-    if (r.eventName === "INSERT") console.log("INSERT");
-
     const newImage = r.dynamodb?.NewImage;
     const processingJob = Utils.zodValidate(
       {
@@ -333,54 +331,80 @@ export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
         );
         break;
       case "IMPROVED":
-        return;
+        continue;
     }
 
-    if (!prompt) throw new Error(`No prompt found for ${processingJob}`);
-
-    await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
+    const response = await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
       method: "POST",
       body: JSON.stringify({
         prompt,
         callbackURL: url.toString(),
       }),
     });
-  }
 
-  console.log("1");
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  }
 };
 
 export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
-  if (!evt.queryStringParameters)
-    throw new Error("No query string parameters found");
+  try {
+    if (!evt.queryStringParameters)
+      throw new Error("No query string parameters found");
 
-  const res = Utils.zodValidate(
-    JSON.parse(evt.body ?? ""),
-    Utils.GPT.responseSchema
-  );
-
-  const { groupId, status, partIndex, totalParts } = evt.queryStringParameters;
-
-  if (
-    !groupId ||
-    !status ||
-    partIndex === undefined ||
-    partIndex === null ||
-    totalParts === undefined ||
-    totalParts === null
-  ) {
-    throw new Error(
-      `Invalid or missing parameters. ${evt.queryStringParameters} `
+    const res = Utils.zodValidate(
+      JSON.parse(evt.body ?? ""),
+      Utils.GPT.responseSchema
     );
+
+    const { groupId, status, partIndex, totalParts } =
+      evt.queryStringParameters;
+
+    if (
+      !groupId ||
+      !status ||
+      partIndex === undefined ||
+      partIndex === null ||
+      totalParts === undefined ||
+      totalParts === null
+    ) {
+      throw new Error(
+        `Invalid or missing parameters. ${evt.queryStringParameters} `
+      );
+    }
+
+    const existingJob = await core.DB.ProcessingJobs.getProcessingJob(
+      groupId,
+      Number(partIndex)
+    );
+
+    // TODO: Configure this as enum and validate the status order on the DB command
+    const statusHierarchy = ["INITIAL", "CLEAN", "TRANSLATED", "IMPROVED"];
+
+    if (
+      existingJob &&
+      statusHierarchy.indexOf(existingJob.status) <
+        statusHierarchy.indexOf(status)
+    ) {
+      await core.DB.ProcessingJobs.createProcessingJob({
+        groupId,
+        partIndex: Number(partIndex),
+        totalParts: Number(totalParts),
+        status,
+        content: res.choices[0].message.content,
+      });
+    }
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ message: "Success" }),
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ message: "Internal Server Error" }),
+    };
   }
-
-  await core.DB.ProcessingJobs.createProcessingJob({
-    groupId,
-    partIndex: Number(partIndex),
-    totalParts: Number(totalParts),
-    status,
-    content: res.choices[0].message.content,
-  });
-
-  console.log("2");
 });

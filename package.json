@@ -14,28 +14,28 @@
   },
   "devDependencies": {
     "@tsconfig/node18": "^18.2.2",
-    "@types/sanitize-html": "^2.9.4",
+    "@types/sanitize-html": "^2.9.5",
     "@types/xml2js": "^0.4.14",
-    "aws-cdk-lib": "2.101.1",
-    "constructs": "10.2.69",
-    "sst": "^2.36.1",
-    "typescript": "^5.2.2"
+    "aws-cdk-lib": "2.110.1",
+    "constructs": "10.3.0",
+    "sst": "^2.36.6",
+    "typescript": "^5.3.2"
   },
   "workspaces": [
     "packages/*"
   ],
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.449.0",
-    "@aws-sdk/client-ses": "^3.449.0",
-    "@aws-sdk/client-sfn": "^3.450.0",
-    "@aws-sdk/client-sqs": "^3.449.0",
-    "@aws-sdk/lib-dynamodb": "^3.449.0",
+    "@aws-sdk/client-dynamodb": "^3.454.0",
+    "@aws-sdk/client-ses": "^3.454.0",
+    "@aws-sdk/client-sfn": "^3.454.0",
+    "@aws-sdk/client-sqs": "^3.454.0",
+    "@aws-sdk/lib-dynamodb": "^3.454.0",
     "@mozilla/readability": "^0.4.4",
-    "aws-sdk": "^2.1494.0",
+    "aws-sdk": "^2.1502.0",
     "file-type": "^18.7.0",
     "form-data": "^4.0.0",
-    "linkedom": "^0.16.1",
-    "openai": "^4.17.5",
+    "linkedom": "^0.16.4",
+    "openai": "^4.20.0",
     "sanitize-html": "^2.11.0"
   }
 }

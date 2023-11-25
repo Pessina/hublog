@@ -118,11 +118,13 @@ export const imageUploadHandler = EventHandler(
 );
 
 export const translationJobTableConsumer = async (evt: DynamoDBStreamEvent) => {
-  const record = evt.Records[0];
-  if (record.eventName === "INSERT") {
-    const id = record.dynamodb?.NewImage?.id.S;
-    if (id) {
-      core.Queue.TranslationJobs.emitMessage({ id });
+  const records = evt.Records.filter((r) => r.eventName === "INSERT");
+  for (const r of records) {
+    if (r.eventName === "INSERT") {
+      const id = r.dynamodb?.NewImage?.id.S;
+      if (id) {
+        await core.Queue.TranslationJobs.emitMessage({ id });
+      }
     }
   }
 };
@@ -145,11 +147,10 @@ export const translationJobQueueConsumer = async (evt: SQSEvent) => {
     if (!scrap)
       throw new Error(`No scrap found for ${translationJob?.originURL}`);
 
-    const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html).slice(0, 1);
+    const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html).slice(0, 5);
 
     for (let index = 0; index < headersArr.length; index++) {
       const text = headersArr[index];
-
       await core.DB.ProcessingJobs.createProcessingJob({
         groupId: translationJob.id,
         partIndex: index,
@@ -275,28 +276,33 @@ export const translationJobQueueConsumer = async (evt: SQSEvent) => {
 // );
 
 export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
-  const record = evt.Records[0];
-  console.log(record.eventName);
+  const records = evt.Records.filter(
+    (r) => r.eventName === "INSERT" || r.eventName === "MODIFY"
+  );
 
-  if (record.eventName === "INSERT" || record.eventName === "MODIFY") {
+  for (const r of records) {
+    if (r.eventName === "INSERT") console.log("INSERT");
+
+    const newImage = r.dynamodb?.NewImage;
     const processingJob = Utils.zodValidate(
       {
-        groupId: record.dynamodb?.NewImage?.groupId.S,
-        partIndex: Number(record.dynamodb?.NewImage?.partIndex.N),
-        totalParts: Number(record.dynamodb?.NewImage?.totalParts.N),
-        status: record.dynamodb?.NewImage?.status.S,
-        content: record.dynamodb?.NewImage?.content.S,
+        groupId: newImage?.groupId.S,
+        partIndex: Number(newImage?.partIndex.N),
+        totalParts: Number(newImage?.totalParts.N),
+        status: newImage?.status.S,
+        content: newImage?.content.S,
       },
       core.DB.ProcessingJobs.ProcessingJobSchema
     );
 
+    const params = new URLSearchParams({
+      groupId: processingJob.groupId,
+      partIndex: processingJob.partIndex.toString(),
+      totalParts: processingJob.totalParts.toString(),
+    });
     const url = new URL(
-      `${Api.ScrapingStackAPI.url}/gpt-open-ai-service-handler`
+      `${Api.ScrapingStackAPI.url}/gpt-open-ai-service-handler?${params}`
     );
-
-    url.searchParams.set("groupId", processingJob.groupId);
-    url.searchParams.set("partIndex", processingJob.partIndex.toString());
-    url.searchParams.set("totalParts", processingJob.totalParts.toString());
 
     const translationJob = await core.DB.TranslationJobs.get(
       processingJob.groupId
@@ -326,6 +332,8 @@ export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
           translationJob?.language
         );
         break;
+      case "IMPROVED":
+        return;
     }
 
     if (!prompt) throw new Error(`No prompt found for ${processingJob}`);
@@ -338,6 +346,8 @@ export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
       }),
     });
   }
+
+  console.log("1");
 };
 
 export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
@@ -371,4 +381,6 @@ export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
     status,
     content: res.choices[0].message.content,
   });
+
+  console.log("2");
 });

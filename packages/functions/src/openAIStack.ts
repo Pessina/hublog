@@ -32,19 +32,15 @@ export const gptAPIHandler = ApiHandler(async (evt) => {
 
 // TODO: if the model it's failing too much interrupt the SQS consumer, check APIRetry table
 export const gptPromptQueueConsumer = async (evt: SQSEvent) => {
-  try {
-    const message = Utils.zodValidate(
-      evt.Records[0],
-      core.Queue.GPTPrompt.gptPromptQueueMessageSchema
-    );
+  const message = Utils.zodValidate(
+    evt.Records[0],
+    core.Queue.GPTPrompt.gptPromptQueueMessageSchema
+  );
 
-    await Utils.StateMachine.startStateMachine(
-      process.env.STATE_MACHINE ?? "",
-      message.body
-    );
-  } catch (e) {
-    console.error(e);
-  }
+  await Utils.StateMachine.startStateMachine(
+    process.env.STATE_MACHINE ?? "",
+    message.body
+  );
 };
 
 export const gptPromptHandler = async (evt: any) => {
@@ -60,6 +56,8 @@ export const gptPromptHandler = async (evt: any) => {
       model: message.prompt.model,
       messages: message.prompt.messages,
     });
+
+    console.log("3");
 
     return {
       callbackURL: message.callbackURL,
@@ -115,6 +113,8 @@ export const gptPromptSuccess = async (
       },
       body: JSON.stringify(res.response),
     });
+
+    console.log("4");
   } catch (e) {
     console.error(e);
     const res = Utils.zodValidate(

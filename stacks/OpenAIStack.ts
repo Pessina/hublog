@@ -52,11 +52,17 @@ export function OpenAIStack({ stack }: StackContext) {
         .next(
           new LambdaInvoke(stack, "Invoke GPT Prompt Success Handler", {
             lambdaFunction: gptPromptSuccess,
-          }).addRetry({
-            interval: Duration.seconds(3),
-            backoffRate: 2.0,
-            maxAttempts: 5,
           })
+            .addRetry({
+              interval: Duration.seconds(3),
+              backoffRate: 2.0,
+              maxAttempts: 5,
+            })
+            .addCatch(
+              new LambdaInvoke(stack, "Invoke Fail Handler", {
+                lambdaFunction: gptPromptFail,
+              })
+            )
         )
     ),
     timeout: Duration.minutes(32),

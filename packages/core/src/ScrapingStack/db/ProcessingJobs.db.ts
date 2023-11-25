@@ -11,11 +11,18 @@ const dynamoDB = DynamoDBDocumentClient.from(client);
 
 import { z } from "zod";
 
+export enum ProcessingJobStatus {
+  INITIAL = "INITIAL",
+  CLEAN = "CLEAN",
+  TRANSLATED = "TRANSLATED",
+  IMPROVED = "IMPROVED",
+}
+
 export const ProcessingJobSchema = z.object({
   groupId: z.string(),
   partIndex: z.number(),
   totalParts: z.number(),
-  status: z.string(),
+  status: z.nativeEnum(ProcessingJobStatus),
   content: z.string(),
 });
 
@@ -24,17 +31,26 @@ type ProcessingJob = z.infer<typeof ProcessingJobSchema>;
 export const createProcessingJob = async (
   args: ProcessingJob
 ): Promise<void> => {
-  const command = new PutCommand({
-    TableName: Table.ProcessingJobsTable.tableName,
-    Item: {
-      groupId: args.groupId,
-      partIndex: args.partIndex,
-      totalParts: args.totalParts,
-      status: args.status,
-      content: args.content,
-    },
-  });
-  await dynamoDB.send(command);
+  const statusHierarchy = Object.values(ProcessingJobStatus);
+  const existingJob = await getProcessingJob(args.groupId, args.partIndex);
+
+  if (
+    !existingJob ||
+    statusHierarchy.indexOf(existingJob.status) <
+      statusHierarchy.indexOf(args.status)
+  ) {
+    const command = new PutCommand({
+      TableName: Table.ProcessingJobsTable.tableName,
+      Item: {
+        groupId: args.groupId,
+        partIndex: args.partIndex,
+        totalParts: args.totalParts,
+        status: args.status,
+        content: args.content,
+      },
+    });
+    await dynamoDB.send(command);
+  }
 };
 
 export const getProcessingJob = async (

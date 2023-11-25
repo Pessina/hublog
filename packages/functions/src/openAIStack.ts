@@ -103,6 +103,10 @@ export const gptPromptSuccess = async (
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    throw new Error(
+      `Failed to fetch from callback. HTTP status: ${
+        response.status
+      }. body: ${JSON.stringify(res.response)}`
+    );
   }
 };

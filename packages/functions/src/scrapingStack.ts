@@ -1,7 +1,6 @@
 import { Api, ApiHandler } from "sst/node/api";
 import crypto from "crypto";
 
-import { ContentAIEvents } from "@hublog/core/src/ScrapingStack/contentAI";
 import { EventHandler } from "sst/node/event-bus";
 import { UrlUtils, UrlEvents } from "@hublog/core/src/ScrapingStack/url";
 import {
@@ -14,8 +13,9 @@ import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import { APIUtils } from "@hublog/core/src/ScrapingStack/api";
 import Utils from "@hublog/core/utils";
 import core from "@hublog/core/src/ScrapingStack";
-import { DynamoDBRecord, DynamoDBStreamEvent, SQSEvent } from "aws-lambda";
+import { DynamoDBStreamEvent, SQSEvent } from "aws-lambda";
 import { GPTPrompt } from "@hublog/core/utils/GPT/schemas/types";
+import { ProcessingJobStatus } from "@hublog/core/ScrapingStack/db/ProcessingJobs.db";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   try {
@@ -155,7 +155,7 @@ export const translationJobQueueConsumer = async (evt: SQSEvent) => {
         groupId: translationJob.id,
         partIndex: index,
         totalParts: headersArr.length,
-        status: "INITIAL",
+        status: core.DB.ProcessingJobs.ProcessingJobStatus.INITIAL,
         content: text,
       });
     }
@@ -311,26 +311,29 @@ export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
 
     let prompt: GPTPrompt | undefined = undefined;
 
+    const { INITIAL, CLEAN, TRANSLATED, IMPROVED } =
+      core.DB.ProcessingJobs.ProcessingJobStatus;
+
     switch (processingJob.status) {
-      case "INITIAL":
-        url.searchParams.set("status", "CLEAN");
+      case INITIAL:
+        url.searchParams.set("status", CLEAN);
         prompt = Utils.GPT.contentPrompts.cleanContent(processingJob.content);
         break;
-      case "CLEAN":
-        url.searchParams.set("status", "TRANSLATED");
+      case CLEAN:
+        url.searchParams.set("status", TRANSLATED);
         prompt = Utils.GPT.contentPrompts.translateText(
           processingJob.content,
           translationJob?.language
         );
         break;
-      case "TRANSLATED":
-        url.searchParams.set("status", "IMPROVED");
+      case TRANSLATED:
+        url.searchParams.set("status", IMPROVED);
         prompt = Utils.GPT.contentPrompts.improveReadability(
           processingJob.content,
           translationJob?.language
         );
         break;
-      case "IMPROVED":
+      case IMPROVED:
         continue;
     }
 
@@ -343,7 +346,14 @@ export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(
+        `Failed to fetch from OpenAI Service. HTTP status: ${
+          response.status
+        }. body: ${JSON.stringify({
+          prompt,
+          callbackURL: url.toString(),
+        })}`
+      );
     }
   }
 };
@@ -374,27 +384,13 @@ export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
       );
     }
 
-    const existingJob = await core.DB.ProcessingJobs.getProcessingJob(
+    await core.DB.ProcessingJobs.createProcessingJob({
       groupId,
-      Number(partIndex)
-    );
-
-    // TODO: Configure this as enum and validate the status order on the DB command
-    const statusHierarchy = ["INITIAL", "CLEAN", "TRANSLATED", "IMPROVED"];
-
-    if (
-      existingJob &&
-      statusHierarchy.indexOf(existingJob.status) <
-        statusHierarchy.indexOf(status)
-    ) {
-      await core.DB.ProcessingJobs.createProcessingJob({
-        groupId,
-        partIndex: Number(partIndex),
-        totalParts: Number(totalParts),
-        status,
-        content: res.choices[0].message.content,
-      });
-    }
+      partIndex: Number(partIndex),
+      totalParts: Number(totalParts),
+      status: status as ProcessingJobStatus,
+      content: res.choices[0].message.content,
+    });
 
     return {
       statusCode: 200,

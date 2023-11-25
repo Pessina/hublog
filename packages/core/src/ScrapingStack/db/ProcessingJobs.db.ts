@@ -10,6 +10,7 @@ const client = new DynamoDBClient();
 const dynamoDB = DynamoDBDocumentClient.from(client);
 
 import { z } from "zod";
+import Utils from "../../utils";
 
 export enum ProcessingJobStatus {
   INITIAL = "INITIAL",
@@ -18,7 +19,7 @@ export enum ProcessingJobStatus {
   IMPROVED = "IMPROVED",
 }
 
-export const ProcessingJobSchema = z.object({
+export const processingJobSchema = z.object({
   groupId: z.string(),
   partIndex: z.number(),
   totalParts: z.number(),
@@ -26,13 +27,11 @@ export const ProcessingJobSchema = z.object({
   content: z.string(),
 });
 
-type ProcessingJob = z.infer<typeof ProcessingJobSchema>;
+type ProcessingJob = z.infer<typeof processingJobSchema>;
 
-export const createProcessingJob = async (
-  args: ProcessingJob
-): Promise<void> => {
+export const put = async (args: ProcessingJob): Promise<void> => {
   const statusHierarchy = Object.values(ProcessingJobStatus);
-  const existingJob = await getProcessingJob(args.groupId, args.partIndex);
+  const existingJob = await get(args.groupId, args.partIndex);
 
   if (
     !existingJob ||
@@ -53,7 +52,7 @@ export const createProcessingJob = async (
   }
 };
 
-export const getProcessingJob = async (
+const get = async (
   groupId: string,
   partIndex: number
 ): Promise<ProcessingJob | null> => {
@@ -69,20 +68,13 @@ export const getProcessingJob = async (
   const data = await dynamoDB.send(command);
 
   if (data.Items && data.Items.length > 0) {
-    const item = data.Items[0];
-    return {
-      groupId: item.groupId.S,
-      partIndex: Number(item.partIndex.N),
-      totalParts: Number(item.totalParts.N),
-      status: item.status.S,
-      content: item.content.S,
-    };
+    return Utils.zodValidate(data.Items[0], processingJobSchema);
   }
 
   return null;
 };
 
-export const checkAndGetProcessingJobs = async (
+export const validateAndRetrieveProcessingJobs = async (
   groupId: string
 ): Promise<Array<ProcessingJob> | null> => {
   const command = new QueryCommand({
@@ -97,9 +89,9 @@ export const checkAndGetProcessingJobs = async (
   const data = await dynamoDB.send(command);
 
   if (data.Items) {
-    const totalParts = data.Items[0].totalParts;
+    const item = Utils.zodValidate(data.Items[0], processingJobSchema);
 
-    if (data.Items.length === totalParts) {
+    if (data.Items.length === item.totalParts) {
       return data.Items.map((item) => ({
         groupId: item.groupId,
         partIndex: item.partIndex,

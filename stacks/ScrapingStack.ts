@@ -156,7 +156,12 @@ export function ScrapingStack({ stack }: StackContext) {
       function: {
         handler:
           "packages/functions/src/scrapingStack.processingJobsTableConsumer",
-        bind: [translationJobsTable, api],
+        bind: [
+          translationJobsTable,
+          api,
+          translatedArticlesTable,
+          processingJobsTable,
+        ],
         environment: {
           OPEN_AI_SERVICE_URL: openAIServiceURL,
         },
@@ -165,6 +170,7 @@ export function ScrapingStack({ stack }: StackContext) {
         eventSource: {
           startingPosition: StartingPosition.TRIM_HORIZON,
           batchSize: 1,
+          retryAttempts: 5,
         },
       },
     },

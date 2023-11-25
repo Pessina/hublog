@@ -151,7 +151,7 @@ export const translationJobQueueConsumer = async (evt: SQSEvent) => {
 
     for (let index = 0; index < headersArr.length; index++) {
       const text = headersArr[index];
-      await core.DB.ProcessingJobs.createProcessingJob({
+      await core.DB.ProcessingJobs.put({
         groupId: translationJob.id,
         partIndex: index,
         totalParts: headersArr.length,
@@ -290,7 +290,7 @@ export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
         status: newImage?.status.S,
         content: newImage?.content.S,
       },
-      core.DB.ProcessingJobs.ProcessingJobSchema
+      core.DB.ProcessingJobs.processingJobSchema
     );
 
     const params = new URLSearchParams({
@@ -334,6 +334,20 @@ export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
         );
         break;
       case IMPROVED:
+        const article =
+          await core.DB.ProcessingJobs.validateAndRetrieveProcessingJobs(
+            processingJob.groupId
+          );
+        if (article) {
+          await core.DB.ArticleTranslations.createOrUpdateArticleTranslation({
+            source: translationJob.originURL,
+            title: "",
+            metaDescription: "",
+            slug: "",
+            html: article.reduce((acc, curr) => acc + curr.content, ""),
+            language: translationJob.language,
+          });
+        }
         continue;
     }
 
@@ -384,7 +398,7 @@ export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
       );
     }
 
-    await core.DB.ProcessingJobs.createProcessingJob({
+    await core.DB.ProcessingJobs.put({
       groupId,
       partIndex: Number(partIndex),
       totalParts: Number(totalParts),

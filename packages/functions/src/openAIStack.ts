@@ -30,6 +30,7 @@ export const gptAPIHandler = ApiHandler(async (evt) => {
   }
 });
 
+// TODO: Interrupt consumer if Open API it's failing too much.
 export const gptPromptQueueConsumer = async (evt: SQSEvent) => {
   const message = Utils.zodValidate(
     evt.Records[0],

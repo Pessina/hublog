@@ -1,5 +1,7 @@
 import { GPTPrompt } from "../schemas/types";
 
+// TODO: improve prompt to retrieve only html, without quoted around. You can use the JSON output format
+
 const cleanContent = (text: string): GPTPrompt => ({
   model: "gpt-3.5-turbo-1106",
   messages: [

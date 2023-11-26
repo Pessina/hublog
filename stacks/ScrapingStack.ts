@@ -115,13 +115,13 @@ export function ScrapingStack({ stack }: StackContext) {
         handler:
           "packages/functions/src/scrapingStack.translationMetadataTableConsumer",
         bind: [scrapsTable, processingTranslationTable],
+        timeout: "3 minutes",
       },
       cdk: {
         eventSource: {
           startingPosition: StartingPosition.TRIM_HORIZON,
-          retryAttempts: 10,
-          bisectBatchOnError: true,
-          parallelizationFactor: 10,
+          batchSize: 1,
+          parallelizationFactor: 3,
         },
       },
     },
@@ -146,7 +146,6 @@ export function ScrapingStack({ stack }: StackContext) {
         eventSource: {
           startingPosition: StartingPosition.TRIM_HORIZON,
           batchSize: 1,
-          retryAttempts: 5,
         },
       },
     },

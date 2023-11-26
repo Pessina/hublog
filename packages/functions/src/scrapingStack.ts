@@ -139,7 +139,9 @@ export const translationMetadataTableConsumer = async (
 
     let scrap = await ScrapsDB.getScrap(translationMetadata?.originURL);
     if (!scrap)
-      throw new Error(`No scrap found for ${translationMetadata?.originURL}`);
+      throw new Error(
+        `No scrap found for ${translationMetadata?.originURL} in ${translationMetadata?.language}`
+      );
 
     const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
 

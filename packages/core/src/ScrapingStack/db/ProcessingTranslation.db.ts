@@ -89,16 +89,15 @@ export const validateAndRetrieveProcessingTranslations = async (
   const data = await dynamoDB.send(command);
 
   if (data.Items) {
-    const item = Utils.zodValidate(data.Items[0], processingTranslationSchema);
+    const validatedItems = data.Items.map((item) =>
+      Utils.zodValidate(item, processingTranslationSchema)
+    );
+    const allImproved = validatedItems.every(
+      (item) => item.status === "IMPROVED"
+    );
 
-    if (data.Items.length === item.totalParts) {
-      return data.Items.map((item) => ({
-        groupId: item.groupId,
-        partIndex: item.partIndex,
-        totalParts: item.totalParts,
-        status: item.status,
-        content: item.content,
-      })).sort((a, b) => a.partIndex - b.partIndex);
+    if (allImproved) {
+      return validatedItems.sort((a, b) => a.partIndex - b.partIndex);
     }
   }
 

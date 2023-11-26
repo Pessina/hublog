@@ -1,6 +1,5 @@
 import * as DB from "./db";
-import * as Queue from "./queue";
 
-const ScrapingStack = { DB, Queue };
+const ScrapingStack = { DB };
 
 export default ScrapingStack;

@@ -12,25 +12,25 @@ const dynamoDB = DynamoDBDocumentClient.from(client);
 import { z } from "zod";
 import Utils from "../../utils";
 
-export enum ProcessingJobStatus {
+export enum ProcessingTranslationStatus {
   INITIAL = "INITIAL",
   CLEAN = "CLEAN",
   TRANSLATED = "TRANSLATED",
   IMPROVED = "IMPROVED",
 }
 
-export const processingJobSchema = z.object({
+export const processingTranslationSchema = z.object({
   groupId: z.string(),
   partIndex: z.number(),
   totalParts: z.number(),
-  status: z.nativeEnum(ProcessingJobStatus),
+  status: z.nativeEnum(ProcessingTranslationStatus),
   content: z.string(),
 });
 
-type ProcessingJob = z.infer<typeof processingJobSchema>;
+type ProcessingTranslation = z.infer<typeof processingTranslationSchema>;
 
-export const put = async (args: ProcessingJob): Promise<void> => {
-  const statusHierarchy = Object.values(ProcessingJobStatus);
+export const put = async (args: ProcessingTranslation): Promise<void> => {
+  const statusHierarchy = Object.values(ProcessingTranslationStatus);
   const existingJob = await get(args.groupId, args.partIndex);
 
   if (
@@ -39,7 +39,7 @@ export const put = async (args: ProcessingJob): Promise<void> => {
       statusHierarchy.indexOf(args.status)
   ) {
     const command = new PutCommand({
-      TableName: Table.ProcessingJobsTable.tableName,
+      TableName: Table.ProcessingTranslationTable.tableName,
       Item: {
         groupId: args.groupId,
         partIndex: args.partIndex,
@@ -55,9 +55,9 @@ export const put = async (args: ProcessingJob): Promise<void> => {
 const get = async (
   groupId: string,
   partIndex: number
-): Promise<ProcessingJob | null> => {
+): Promise<ProcessingTranslation | null> => {
   const command = new QueryCommand({
-    TableName: Table.ProcessingJobsTable.tableName,
+    TableName: Table.ProcessingTranslationTable.tableName,
     KeyConditionExpression: "groupId = :groupId and partIndex = :partIndex",
     ExpressionAttributeValues: {
       ":groupId": groupId,
@@ -68,17 +68,17 @@ const get = async (
   const data = await dynamoDB.send(command);
 
   if (data.Items && data.Items.length > 0) {
-    return Utils.zodValidate(data.Items[0], processingJobSchema);
+    return Utils.zodValidate(data.Items[0], processingTranslationSchema);
   }
 
   return null;
 };
 
-export const validateAndRetrieveProcessingJobs = async (
+export const validateAndRetrieveProcessingTranslations = async (
   groupId: string
-): Promise<Array<ProcessingJob> | null> => {
+): Promise<Array<ProcessingTranslation> | null> => {
   const command = new QueryCommand({
-    TableName: Table.ProcessingJobsTable.tableName,
+    TableName: Table.ProcessingTranslationTable.tableName,
     KeyConditionExpression: "groupId = :groupId",
     ExpressionAttributeValues: {
       ":groupId": groupId,
@@ -89,7 +89,7 @@ export const validateAndRetrieveProcessingJobs = async (
   const data = await dynamoDB.send(command);
 
   if (data.Items) {
-    const item = Utils.zodValidate(data.Items[0], processingJobSchema);
+    const item = Utils.zodValidate(data.Items[0], processingTranslationSchema);
 
     if (data.Items.length === item.totalParts) {
       return data.Items.map((item) => ({

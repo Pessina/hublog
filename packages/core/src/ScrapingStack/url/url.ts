@@ -60,7 +60,7 @@ export async function createEventsForUrls(
   for (const url of urls) {
     try {
       for (const d of destinationBlogs) {
-        core.DB.TranslationJobs.create({
+        core.DB.TranslationMetadata.create({
           blogURL: d.blogURL,
           language: d.language,
           email: d.email,

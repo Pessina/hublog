@@ -8,7 +8,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 
-export const translationJobsSchemaInput = z.object({
+export const translationMetadataSchemaInput = z.object({
   blogURL: z.string().url(),
   language: z.string(),
   email: z.string().email(),
@@ -16,28 +16,34 @@ export const translationJobsSchemaInput = z.object({
   originURL: z.string().url(),
 });
 
-type TranslationJobsSchemaInput = Zod.infer<typeof translationJobsSchemaInput>;
-type TranslationJobsSchema = TranslationJobsSchemaInput & {
-  id: string;
-};
+type TranslationMetadataSchemaInput = Zod.infer<
+  typeof translationMetadataSchemaInput
+>;
+
+export const translationMetadataSchema = z.object({
+  ...translationMetadataSchemaInput.shape,
+  id: z.string(),
+});
+
+type TranslationMetadataSchema = Zod.infer<typeof translationMetadataSchema>;
 
 const client = new DynamoDBClient();
 const dynamoDB = DynamoDBDocumentClient.from(client);
 
-const get = async (id: string): Promise<TranslationJobsSchema | null> => {
+const get = async (id: string): Promise<TranslationMetadataSchema | null> => {
   const command = new GetCommand({
-    TableName: Table.TranslationJobsTable.tableName,
+    TableName: Table.TranslationMetadataTable.tableName,
     Key: { id },
   });
   const res = await dynamoDB.send(command);
-  return (res.Item as TranslationJobsSchema) || null;
+  return (res.Item as TranslationMetadataSchema) || null;
 };
 
-const create = async (translationJob: TranslationJobsSchemaInput) => {
+const create = async (translationMetadata: TranslationMetadataSchemaInput) => {
   const command = new PutCommand({
-    TableName: Table.TranslationJobsTable.tableName,
+    TableName: Table.TranslationMetadataTable.tableName,
     Item: {
-      ...translationJob,
+      ...translationMetadata,
       id: crypto.randomUUID(),
     },
   });

@@ -5,14 +5,11 @@ import {
   Bucket,
   Table,
   use,
-  Function,
-  Queue,
 } from "sst/constructs";
 import { UrlEventNames } from "@hublog/core/src/ScrapingStack/url";
 import { ContentAIEventNames } from "@hublog/core/src/ScrapingStack/contentAI";
 import { ImagesEventNames } from "@hublog/core/src/ScrapingStack/images";
 import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
-import { Duration } from "aws-cdk-lib";
 import { OpenAIStack } from "./OpenAIStack";
 import { StartingPosition } from "aws-cdk-lib/aws-lambda";
 
@@ -35,32 +32,38 @@ export function ScrapingStack({ stack }: StackContext) {
     primaryIndex: { partitionKey: "source" },
   });
 
-  const translationJobsTable = new Table(stack, "TranslationJobsTable", {
-    fields: {
-      id: "string",
-      blogURL: "string",
-      language: "string",
-      email: "string",
-      password: "string",
-      originURL: "string",
-    },
-    primaryIndex: { partitionKey: "id" },
-    stream: true,
-  });
+  const translationMetadataTable = new Table(
+    stack,
+    "TranslationMetadataTable",
+    {
+      fields: {
+        id: "string",
+        blogURL: "string",
+        language: "string",
+        email: "string",
+        password: "string",
+        originURL: "string",
+      },
+      primaryIndex: { partitionKey: "id" },
+      stream: true,
+    }
+  );
 
-  // Update it to handle save all translation jobs info, language, targetBlog, etc
-  // Set a consumer to the Jobs Translation Queue, that will read a job and add a entry on this DB with all the metadata
-  const processingJobsTable = new Table(stack, "ProcessingJobsTable", {
-    fields: {
-      groupId: "string",
-      partIndex: "number",
-      totalParts: "number",
-      status: "string",
-      content: "string",
-    },
-    primaryIndex: { partitionKey: "groupId", sortKey: "partIndex" },
-    stream: true,
-  });
+  const processingTranslationTable = new Table(
+    stack,
+    "ProcessingTranslationTable",
+    {
+      fields: {
+        groupId: "string",
+        partIndex: "number",
+        totalParts: "number",
+        status: "string",
+        content: "string",
+      },
+      primaryIndex: { partitionKey: "groupId", sortKey: "partIndex" },
+      stream: true,
+    }
+  );
 
   const translatedArticlesTable = new Table(stack, "TranslatedArticlesTable", {
     fields: {
@@ -100,67 +103,40 @@ export function ScrapingStack({ stack }: StackContext) {
       "POST /scrap/url-list": {
         function: {
           handler: "packages/functions/src/scrapingStack.urlListHandler",
-          bind: [bus, translationJobsTable],
+          bind: [bus, translationMetadataTable],
         },
       },
     },
   });
 
-  const dlq = new Queue(stack, "DlqScrapingStack");
-
-  const translationJobsQueue = new Queue(stack, "TranslationJobsQueue", {
-    consumer: {
+  translationMetadataTable.addConsumers(stack, {
+    translationMetadataTableConsumer: {
       function: {
         handler:
-          "packages/functions/src/scrapingStack.translationJobQueueConsumer",
-        bind: [
-          translationJobsTable,
-          scrapsTable,
-          bus,
-          api,
-          processingJobsTable,
-        ],
-        environment: {
-          OPEN_AI_SERVICE_URL: openAIServiceURL,
-        },
+          "packages/functions/src/scrapingStack.translationMetadataTableConsumer",
+        bind: [scrapsTable, processingTranslationTable],
       },
-    },
-    cdk: {
-      queue: {
-        visibilityTimeout: Duration.seconds(60),
-        deliveryDelay: Duration.seconds(10),
-        deadLetterQueue: {
-          maxReceiveCount: 2,
-          queue: dlq.cdk.queue,
+      cdk: {
+        eventSource: {
+          startingPosition: StartingPosition.TRIM_HORIZON,
+          retryAttempts: 10,
+          bisectBatchOnError: true,
+          parallelizationFactor: 10,
         },
       },
     },
   });
 
-  const translationJobTableConsumer = new Function(
-    stack,
-    "TranslationJobTableConsumer",
-    {
-      handler:
-        "packages/functions/src/scrapingStack.translationJobTableConsumer",
-      bind: [translationJobsTable, translationJobsQueue],
-    }
-  );
-
-  translationJobsTable.addConsumers(stack, {
-    translationJobTableConsumer: translationJobTableConsumer,
-  });
-
-  processingJobsTable.addConsumers(stack, {
-    processingJobsTableConsumer: {
+  processingTranslationTable.addConsumers(stack, {
+    processingTranslationTableConsumer: {
       function: {
         handler:
-          "packages/functions/src/scrapingStack.processingJobsTableConsumer",
+          "packages/functions/src/scrapingStack.processingTranslationTableConsumer",
         bind: [
-          translationJobsTable,
           api,
+          translationMetadataTable,
           translatedArticlesTable,
-          processingJobsTable,
+          processingTranslationTable,
         ],
         environment: {
           OPEN_AI_SERVICE_URL: openAIServiceURL,
@@ -177,17 +153,18 @@ export function ScrapingStack({ stack }: StackContext) {
   });
 
   api.addRoutes(stack, {
-    "POST /gpt-open-ai-service-handler": {
+    "POST /processing-translation-api-handler": {
       function: {
-        bind: [processingJobsTable],
-        handler: "packages/functions/src/scrapingStack.GPTOpenAIServiceHandler",
+        bind: [processingTranslationTable],
+        handler:
+          "packages/functions/src/scrapingStack.processingTranslationAPIHandler",
       },
     },
   });
 
   bus.subscribe(UrlEventNames.CreatedForSitemap, {
     handler: "packages/functions/src/scrapingStack.sitemapHandler",
-    bind: [bus, translationJobsTable],
+    bind: [bus, translationMetadataTable],
   });
 
   bus.subscribe(UrlEventNames.CreatedForUrl, {

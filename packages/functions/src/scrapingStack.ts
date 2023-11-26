@@ -15,7 +15,7 @@ import Utils from "@hublog/core/utils";
 import core from "@hublog/core/src/ScrapingStack";
 import { DynamoDBStreamEvent, SQSEvent } from "aws-lambda";
 import { GPTPrompt } from "@hublog/core/utils/GPT/schemas/types";
-import { ProcessingJobStatus } from "@hublog/core/ScrapingStack/db/ProcessingJobs.db";
+import { ProcessingTranslationStatus } from "@hublog/core/ScrapingStack/db/ProcessingTranslation.db";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
   try {
@@ -117,45 +117,40 @@ export const imageUploadHandler = EventHandler(
   }
 );
 
-export const translationJobTableConsumer = async (evt: DynamoDBStreamEvent) => {
+export const translationMetadataTableConsumer = async (
+  evt: DynamoDBStreamEvent
+) => {
   const records = evt.Records.filter((r) => r.eventName === "INSERT");
+
   for (const r of records) {
-    if (r.eventName === "INSERT") {
-      const id = r.dynamodb?.NewImage?.id.S;
-      if (id) {
-        await core.Queue.TranslationJobs.emitMessage({ id });
-      }
-    }
-  }
-};
+    const newImage = r.dynamodb?.NewImage;
 
-export const translationJobQueueConsumer = async (evt: SQSEvent) => {
-  const translationJobMessage = Utils.zodValidate(
-    JSON.parse(evt.Records[0]?.body),
-    core.Queue.TranslationJobs.translationJobsQueueSchema
-  );
-  if (translationJobMessage) {
-    const translationJob = await core.DB.TranslationJobs.get(
-      translationJobMessage.id
+    const translationMetadata = Utils.zodValidate(
+      {
+        id: newImage?.id.S,
+        blogURL: newImage?.blogURL.S,
+        language: newImage?.language.S,
+        email: newImage?.email.S,
+        password: newImage?.password.S,
+        originURL: newImage?.originURL.S,
+      },
+      core.DB.TranslationMetadata.translationMetadataSchema
     );
-    if (!translationJob)
-      throw new Error(
-        `No translation job found for ${translationJobMessage.id}`
-      );
 
-    let scrap = await ScrapsDB.getScrap(translationJob?.originURL);
+    let scrap = await ScrapsDB.getScrap(translationMetadata?.originURL);
     if (!scrap)
-      throw new Error(`No scrap found for ${translationJob?.originURL}`);
+      throw new Error(`No scrap found for ${translationMetadata?.originURL}`);
 
     const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
 
     for (let index = 0; index < headersArr.length; index++) {
       const text = headersArr[index];
-      await core.DB.ProcessingJobs.put({
-        groupId: translationJob.id,
+      await core.DB.ProcessingTranslation.put({
+        groupId: translationMetadata.id,
         partIndex: index,
         totalParts: headersArr.length,
-        status: core.DB.ProcessingJobs.ProcessingJobStatus.INITIAL,
+        status:
+          core.DB.ProcessingTranslation.ProcessingTranslationStatus.INITIAL,
         content: text,
       });
     }
@@ -275,14 +270,16 @@ export const translationJobQueueConsumer = async (evt: SQSEvent) => {
 //   }
 // );
 
-export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
+export const processingTranslationTableConsumer = async (
+  evt: DynamoDBStreamEvent
+) => {
   const records = evt.Records.filter(
     (r) => r.eventName === "INSERT" || r.eventName === "MODIFY"
   );
 
   for (const r of records) {
     const newImage = r.dynamodb?.NewImage;
-    const processingJob = Utils.zodValidate(
+    const processingTranslation = Utils.zodValidate(
       {
         groupId: newImage?.groupId.S,
         partIndex: Number(newImage?.partIndex.N),
@@ -290,62 +287,66 @@ export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
         status: newImage?.status.S,
         content: newImage?.content.S,
       },
-      core.DB.ProcessingJobs.processingJobSchema
+      core.DB.ProcessingTranslation.processingTranslationSchema
     );
 
     const params = new URLSearchParams({
-      groupId: processingJob.groupId,
-      partIndex: processingJob.partIndex.toString(),
-      totalParts: processingJob.totalParts.toString(),
+      groupId: processingTranslation.groupId,
+      partIndex: processingTranslation.partIndex.toString(),
+      totalParts: processingTranslation.totalParts.toString(),
     });
     const url = new URL(
-      `${Api.ScrapingStackAPI.url}/gpt-open-ai-service-handler?${params}`
+      `${Api.ScrapingStackAPI.url}/processing-translation-api-handler?${params}`
     );
 
-    const translationJob = await core.DB.TranslationJobs.get(
-      processingJob.groupId
+    const translationMetadata = await core.DB.TranslationMetadata.get(
+      processingTranslation.groupId
     );
 
-    if (!translationJob)
-      throw new Error(`No translation job found for ${processingJob.groupId}`);
+    if (!translationMetadata)
+      throw new Error(
+        `No translation job found for ${processingTranslation.groupId}`
+      );
 
     let prompt: GPTPrompt | undefined = undefined;
 
     const { INITIAL, CLEAN, TRANSLATED, IMPROVED } =
-      core.DB.ProcessingJobs.ProcessingJobStatus;
+      core.DB.ProcessingTranslation.ProcessingTranslationStatus;
 
-    switch (processingJob.status) {
+    switch (processingTranslation.status) {
       case INITIAL:
         url.searchParams.set("status", CLEAN);
-        prompt = Utils.GPT.contentPrompts.cleanContent(processingJob.content);
+        prompt = Utils.GPT.contentPrompts.cleanContent(
+          processingTranslation.content
+        );
         break;
       case CLEAN:
         url.searchParams.set("status", TRANSLATED);
         prompt = Utils.GPT.contentPrompts.translateText(
-          processingJob.content,
-          translationJob?.language
+          processingTranslation.content,
+          translationMetadata?.language
         );
         break;
       case TRANSLATED:
         url.searchParams.set("status", IMPROVED);
         prompt = Utils.GPT.contentPrompts.improveReadability(
-          processingJob.content,
-          translationJob?.language
+          processingTranslation.content,
+          translationMetadata?.language
         );
         break;
       case IMPROVED:
         const article =
-          await core.DB.ProcessingJobs.validateAndRetrieveProcessingJobs(
-            processingJob.groupId
+          await core.DB.ProcessingTranslation.validateAndRetrieveProcessingTranslations(
+            processingTranslation.groupId
           );
         if (article) {
           await core.DB.ArticleTranslations.createOrUpdateArticleTranslation({
-            source: translationJob.originURL,
+            source: translationMetadata.originURL,
             title: "",
             metaDescription: "",
             slug: "",
             html: article.reduce((acc, curr) => acc + curr.content, ""),
-            language: translationJob.language,
+            language: translationMetadata.language,
           });
         }
         continue;
@@ -372,7 +373,7 @@ export const processingJobsTableConsumer = async (evt: DynamoDBStreamEvent) => {
   }
 };
 
-export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
+export const processingTranslationAPIHandler = ApiHandler(async (evt) => {
   try {
     if (!evt.queryStringParameters)
       throw new Error("No query string parameters found");
@@ -398,11 +399,11 @@ export const GPTOpenAIServiceHandler = ApiHandler(async (evt) => {
       );
     }
 
-    await core.DB.ProcessingJobs.put({
+    await core.DB.ProcessingTranslation.put({
       groupId,
       partIndex: Number(partIndex),
       totalParts: Number(totalParts),
-      status: status as ProcessingJobStatus,
+      status: status as ProcessingTranslationStatus,
       content: res.choices[0].message.content,
     });
 

@@ -1,4 +1,4 @@
 export * as ScrapsDB from "./Scraps.db";
 export * as ArticleTranslations from "./ArticlesTranslation.db";
-export * as ProcessingJobs from "./ProcessingJobs.db";
-export * as TranslationJobs from "./TranslationJobs.db";
+export * as ProcessingTranslation from "./ProcessingTranslation.db";
+export * as TranslationMetadata from "./TranslationMetadata.db";

@@ -8,7 +8,7 @@ import {
 import { Queue } from "sst/node/queue";
 import { z } from "zod";
 import Utils from "../../utils";
-import { gptPromptRequestSchema, gptPromptSchema } from "../api/schemas";
+import { gptPromptRequestSchema } from "../api/schemas";
 
 const client = new SQSClient();
 

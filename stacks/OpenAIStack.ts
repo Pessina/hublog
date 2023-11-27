@@ -24,16 +24,16 @@ export function OpenAIStack({ stack }: StackContext) {
       })
         .addRetry({
           interval: Duration.seconds(60),
-          backoffRate: 2.0,
-          maxAttempts: 5,
+          backoffRate: 1.2,
+          maxAttempts: 20,
         })
         .next(
           new LambdaInvoke(stack, "Invoke GPT Prompt Success Handler", {
             lambdaFunction: gptPromptSuccess,
           }).addRetry({
-            interval: Duration.seconds(3),
+            interval: Duration.seconds(1),
             backoffRate: 2.0,
-            maxAttempts: 5,
+            maxAttempts: 20,
           })
         )
     ),

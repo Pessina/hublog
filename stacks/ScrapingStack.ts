@@ -5,6 +5,7 @@ import {
   Bucket,
   Table,
   use,
+  Queue,
 } from "sst/constructs";
 import { UrlEventNames } from "@hublog/core/src/ScrapingStack/url";
 import { ContentAIEventNames } from "@hublog/core/src/ScrapingStack/contentAI";
@@ -12,6 +13,7 @@ import { ImagesEventNames } from "@hublog/core/src/ScrapingStack/images";
 import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import { OpenAIStack } from "./OpenAIStack";
 import { StartingPosition } from "aws-cdk-lib/aws-lambda";
+import { Duration } from "aws-cdk-lib";
 
 export function ScrapingStack({ stack }: StackContext) {
   const { ApiEndpoint: openAIServiceURL } = use(OpenAIStack);
@@ -109,13 +111,50 @@ export function ScrapingStack({ stack }: StackContext) {
     },
   });
 
+  const dlq = new Queue(stack, "DlqScrapingStack", {
+    cdk: {
+      queue: {
+        fifo: true,
+      },
+    },
+  });
+
+  const translationMetadataQueue = new Queue(
+    stack,
+    "TranslationMetadataQueue",
+    {
+      consumer: {
+        function: {
+          handler:
+            "packages/functions/src/scrapingStack.translationMetadataQueueConsumer",
+          bind: [
+            scrapsTable,
+            processingTranslationTable,
+            translationMetadataTable,
+          ],
+        },
+      },
+      cdk: {
+        queue: {
+          visibilityTimeout: Duration.seconds(60),
+          deliveryDelay: Duration.seconds(10),
+          fifo: true,
+          contentBasedDeduplication: true,
+          deadLetterQueue: {
+            maxReceiveCount: 5,
+            queue: dlq.cdk.queue,
+          },
+        },
+      },
+    }
+  );
+
   translationMetadataTable.addConsumers(stack, {
     translationMetadataTableConsumer: {
       function: {
         handler:
           "packages/functions/src/scrapingStack.translationMetadataTableConsumer",
-        bind: [scrapsTable, processingTranslationTable],
-        timeout: "3 minutes",
+        bind: [translationMetadataQueue],
       },
       cdk: {
         eventSource: {

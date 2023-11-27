@@ -137,25 +137,39 @@ export const translationMetadataTableConsumer = async (
       core.DB.TranslationMetadata.translationMetadataSchema
     );
 
-    let scrap = await ScrapsDB.getScrap(translationMetadata?.originURL);
-    if (!scrap)
-      throw new Error(
-        `No scrap found for ${translationMetadata?.originURL} in ${translationMetadata?.language}`
-      );
+    await core.Queue.TranslationMetadata.emit({ id: translationMetadata.id });
+  }
+};
 
-    const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
+export const translationMetadataQueueConsumer = async (evt: SQSEvent) => {
+  const message = Utils.zodValidate(
+    JSON.parse(evt.Records[0].body ?? ""),
+    core.Queue.TranslationMetadata.translationMetadataQueueMessageSchema
+  );
 
-    for (let index = 0; index < headersArr.length; index++) {
-      const text = headersArr[index];
-      await core.DB.ProcessingTranslation.put({
-        groupId: translationMetadata.id,
-        partIndex: index,
-        totalParts: headersArr.length,
-        status:
-          core.DB.ProcessingTranslation.ProcessingTranslationStatus.INITIAL,
-        content: text,
-      });
-    }
+  const translationMetadata = await core.DB.TranslationMetadata.get(message.id);
+  if (!translationMetadata)
+    throw new Error(
+      `No translation translation metadata found for ${message.id}`
+    );
+
+  let scrap = await ScrapsDB.getScrap(translationMetadata?.originURL);
+  if (!scrap)
+    throw new Error(
+      `No scrap found for ${translationMetadata?.originURL} in ${translationMetadata?.language}`
+    );
+
+  const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
+
+  for (let index = 0; index < headersArr.length; index++) {
+    const text = headersArr[index];
+    await core.DB.ProcessingTranslation.put({
+      groupId: translationMetadata.id,
+      partIndex: index,
+      totalParts: headersArr.length,
+      status: core.DB.ProcessingTranslation.ProcessingTranslationStatus.INITIAL,
+      content: text,
+    });
   }
 };
 

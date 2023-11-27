@@ -133,6 +133,11 @@ export function ScrapingStack({ stack }: StackContext) {
             translationMetadataTable,
           ],
         },
+        cdk: {
+          eventSource: {
+            batchSize: 1,
+          },
+        },
       },
       cdk: {
         queue: {

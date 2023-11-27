@@ -17,6 +17,7 @@ export function OpenAIStack({ stack }: StackContext) {
     handler: "packages/functions/src/openAIStack.gptPromptSuccess",
   });
 
+  // TODO: Catch the error
   const retryStateMachine = new StateMachine(stack, "GPTPromptRetry", {
     definitionBody: DefinitionBody.fromChainable(
       new LambdaInvoke(stack, "Invoke GPT Prompt Handler", {
@@ -63,6 +64,9 @@ export function OpenAIStack({ stack }: StackContext) {
     },
   });
 
+  // TODO: Add batch processing endpoint
+  // TODO: Add prompt pipeline endpoint. Eg. User can send 3 prompts that will be chained based on the response of the previous
+  // TODO: Create a third endpoint combining the previous 2
   const api = new Api(stack, "OpenAIStackAPI", {
     routes: {
       "POST /chatgpt": {

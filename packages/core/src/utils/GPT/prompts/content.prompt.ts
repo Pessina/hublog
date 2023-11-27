@@ -1,7 +1,6 @@
 import { GPTPrompt } from "../schemas/types";
 
-// TODO: improve prompt to retrieve only html, without quoted around. You can use the JSON output format
-
+// TODO: Improve prompt to retrieve only html, without quoted around. You can use the JSON output format
 const cleanContent = (text: string): GPTPrompt => ({
   model: "gpt-3.5-turbo-1106",
   messages: [
@@ -43,7 +42,7 @@ const translateText = (text: string, targetLanguage: string): GPTPrompt => ({
   ],
 });
 
-// TODO: Add a prompt to break content by headers, paragraph and sections
+// TODO: Add a prompt to break content by headers, paragraph and sections to improve readability
 const improveReadability = (
   text: string,
   targetLanguage: string

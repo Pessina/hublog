@@ -76,7 +76,7 @@ export const sitemapHandler = EventHandler(
   async (evt) => {
     const { url, destinations } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
-    // TODO: remove slice
+    // TODO: Remove slice
     await UrlUtils.createEventsForUrls(urls.slice(0, 3), destinations);
   }
 );
@@ -146,6 +146,13 @@ export const translationMetadataQueueConsumer = async (evt: SQSEvent) => {
     JSON.parse(evt.Records[0].body ?? ""),
     core.Queue.TranslationMetadata.translationMetadataQueueMessageSchema
   );
+
+  const processingTranslationCount =
+    await core.DB.ProcessingTranslation.countIncompleteGroupIds();
+  if (processingTranslationCount > 3)
+    throw new Error(
+      `There are already ${processingTranslationCount} translation jobs in progress.`
+    );
 
   const translationMetadata = await core.DB.TranslationMetadata.get(message.id);
   if (!translationMetadata)
@@ -364,6 +371,9 @@ export const processingTranslationTableConsumer = async (
             html: article.reduce((acc, curr) => acc + curr.content, ""),
             language: translationMetadata.language,
           });
+          await core.DB.ProcessingTranslation.deleteProcessingTranslationsByGroupId(
+            processingTranslation.groupId
+          );
         }
         continue;
     }

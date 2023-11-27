@@ -105,11 +105,6 @@ export const validateAndRetrieveProcessingTranslations = async (
   return null;
 };
 
-// This table is used to track the number of articles being translated concurrently. It helps in limiting the rate of article input.
-// Once the translation of an article is complete, its corresponding item in this table should be deleted.
-// A scheduled task (cron job) can be used to ensure the table is updated regularly. Make sure the data it's already copied to articleTranslatedTable before deleting.
-// The data in this table becomes redundant after processing, as the processed data is stored in the 'translatedArticlesTable'.
-// To manage the translation process based on the number of concurrent translations, we can use either a Simple Queue Service (SQS - Fixed retry time - 14 days stored) or the DynamoDB Stream (Exponential backoff retry - 24hrs storage).
 export const deleteProcessingTranslationsByGroupId = async (
   groupId: string
 ): Promise<void> => {
@@ -128,8 +123,8 @@ export const deleteProcessingTranslationsByGroupId = async (
       const deleteCommand = new DeleteCommand({
         TableName: Table.ProcessingTranslationTable.tableName,
         Key: {
-          groupId: { S: item.groupId },
-          partIndex: { N: item.partIndex.toString() },
+          groupId: item.groupId.S,
+          partIndex: Number(item.partIndex.N),
         },
       });
 
@@ -141,7 +136,10 @@ export const deleteProcessingTranslationsByGroupId = async (
 export const countIncompleteGroupIds = async (): Promise<number> => {
   const command = new ScanCommand({
     TableName: Table.ProcessingTranslationTable.tableName,
-    FilterExpression: "status <> :status",
+    FilterExpression: "#st <> :status",
+    ExpressionAttributeNames: {
+      "#st": "status",
+    },
     ExpressionAttributeValues: {
       ":status": { S: "IMPROVED" },
     },

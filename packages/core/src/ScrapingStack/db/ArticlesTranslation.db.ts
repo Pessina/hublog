@@ -3,7 +3,6 @@ import {
   DynamoDBDocumentClient,
   PutCommand,
   GetCommand,
-  DeleteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { Table } from "sst/node/table";
@@ -25,47 +24,20 @@ interface ArticleTranslation extends ArticleTranslationInput {
   updatedAt: string;
 }
 
-export const createOrUpdateArticleTranslation = async (
-  articleTranslation: ArticleTranslationInput
-) => {
-  const existingArticleTranslation = await getArticleTranslation(
-    articleTranslation.source,
-    articleTranslation.language
-  );
-  if (existingArticleTranslation) {
-    const command = new UpdateCommand({
-      TableName: Table.TranslatedArticlesTable.tableName,
-      Key: {
-        source: articleTranslation.source,
-        language: articleTranslation.language,
-      },
-      UpdateExpression:
-        "set title = :t, metaDescription = :m, slug = :s, html = :h, updatedAt = :u",
-      ExpressionAttributeValues: {
-        ":t": articleTranslation.title,
-        ":m": articleTranslation.metaDescription,
-        ":s": articleTranslation.slug,
-        ":h": articleTranslation.html,
-        ":u": new Date().toISOString(),
-      },
-    });
+export const put = async (articleTranslation: ArticleTranslationInput) => {
+  const command = new PutCommand({
+    TableName: Table.TranslatedArticlesTable.tableName,
+    Item: {
+      ...articleTranslation,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  });
 
-    return await dynamoDB.send(command);
-  } else {
-    const command = new PutCommand({
-      TableName: Table.TranslatedArticlesTable.tableName,
-      Item: {
-        ...articleTranslation,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    });
-
-    return await dynamoDB.send(command);
-  }
+  return await dynamoDB.send(command);
 };
 
-export const getArticleTranslation = async (
+export const get = async (
   source: string,
   language: string
 ): Promise<ArticleTranslation | null> => {
@@ -77,10 +49,29 @@ export const getArticleTranslation = async (
   return (res.Item as ArticleTranslation) || null;
 };
 
-export const deleteArticleTranslation = async (source: string) => {
-  const command = new DeleteCommand({
+export const update = async (
+  source: string,
+  language: string,
+  articleTranslation: Partial<
+    Omit<ArticleTranslationInput, "source" | "language">
+  >
+) => {
+  const command = new UpdateCommand({
     TableName: Table.TranslatedArticlesTable.tableName,
-    Key: { source },
+    Key: {
+      source: source,
+      language: language,
+    },
+    UpdateExpression:
+      "set title = :t, metaDescription = :m, slug = :s, html = :h, updatedAt = :u",
+    ExpressionAttributeValues: {
+      ":t": articleTranslation.title,
+      ":m": articleTranslation.metaDescription,
+      ":s": articleTranslation.slug,
+      ":h": articleTranslation.html,
+      ":u": new Date().toISOString(),
+    },
   });
+
   return await dynamoDB.send(command);
 };

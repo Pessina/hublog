@@ -9,7 +9,6 @@ import {
 } from "@hublog/core/src/ScrapingStack/images";
 import { ScrapUtils } from "@hublog/core/src/ScrapingStack/scraping";
 import { ScrapsDB } from "@hublog/core/src/ScrapingStack/db";
-import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import { APIUtils } from "@hublog/core/src/ScrapingStack/api";
 import Utils from "@hublog/core/utils";
 import core from "@hublog/core/src/ScrapingStack";
@@ -113,7 +112,9 @@ export const imageUploadHandler = EventHandler(
   async (evt) => {
     const { name, src } = evt.properties;
     const imageBuffer = await ImageUtils.processImageSrc(src);
-    await ImagesBucket.uploadImage(imageBuffer, name, { isPublic: true });
+    await core.S3.ImagesBucket.uploadImage(imageBuffer, name, {
+      isPublic: true,
+    });
   }
 );
 
@@ -179,44 +180,6 @@ export const translationMetadataQueueConsumer = async (evt: SQSEvent) => {
     });
   }
 };
-
-// export const translationHandler = async (evt: any) => {
-// const translatedHTML = (
-//   await Promise.all(
-//     headersArr.map(async (h) => {
-//       const cleanText = await ContentAIUtils.cleanContent(h);
-//       const translated = await ContentAIUtils.translateText(
-//         cleanText,
-//         data.language
-//       );
-//       const improvedText = await ContentAIUtils.improveReadability(
-//         translated,
-//         data.language
-//       );
-//       return ScrapUtils.trimAndRemoveQuotes(improvedText);
-//     })
-//   )
-// ).join(" ");
-// const SEOArgs = await ContentAIUtils.getSEOArgs(
-//   translatedHTML,
-//   data.language
-// );
-// await ArticleTranslationsDB.createOrUpdateArticleTranslation({
-//   source: data.originURL,
-//   title: SEOArgs.title,
-//   metaDescription: SEOArgs.metaDescription,
-//   slug: SEOArgs.slug,
-//   html: translatedHTML,
-//   language: data.language,
-// });
-// await ContentAIEvents.CreatedForTranslation.publish({
-//   url: data.originURL,
-//   language: data.language,
-//   email: data.email,
-//   password: data.password,
-//   blogURL: data.blogURL,
-// });
-// };
 
 // export const postWordPressHandler = EventHandler(
 //   ContentAIEvents.CreatedForTranslation,
@@ -363,7 +326,7 @@ export const processingTranslationTableConsumer = async (
             processingTranslation.groupId
           );
         if (article) {
-          await core.DB.ArticleTranslations.createOrUpdateArticleTranslation({
+          await core.DB.ArticleTranslations.put({
             source: translationMetadata.originURL,
             title: "",
             metaDescription: "",
@@ -425,12 +388,18 @@ export const processingTranslationAPIHandler = ApiHandler(async (evt) => {
       );
     }
 
+    const html = JSON.parse(res.choices[0].message.content)?.html;
+    if (!html)
+      throw new Error(
+        `No html found in response. ${JSON.stringify(res.choices[0].message)}`
+      );
+
     await core.DB.ProcessingTranslation.put({
       groupId,
       partIndex: Number(partIndex),
       totalParts: Number(totalParts),
       status: status as ProcessingTranslationStatus,
-      content: res.choices[0].message.content,
+      content: html,
     });
 
     return {

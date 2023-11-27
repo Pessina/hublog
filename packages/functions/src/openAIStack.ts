@@ -32,13 +32,13 @@ export const gptAPIHandler = ApiHandler(async (evt) => {
 // TODO: Interrupt consumer if Open API it's failing too much.
 export const gptPromptQueueConsumer = async (evt: SQSEvent) => {
   const message = Utils.zodValidate(
-    evt.Records[0],
-    core.Queue.GPTPrompt.gptPromptQueueMessageSchema
+    JSON.parse(evt.Records[0].body) ?? "",
+    core.API.schemas.gptPromptRequestSchema
   );
 
   await Utils.StateMachine.startStateMachine(
     process.env.STATE_MACHINE ?? "",
-    message.body
+    JSON.stringify(message)
   );
 };
 
@@ -51,10 +51,7 @@ export const gptPromptHandler = async (evt: any) => {
   const openAI = new OpenAI({ apiKey: Config.OPEN_AI_KEY });
 
   try {
-    const res = await openAI.chat.completions.create({
-      model: message.prompt.model,
-      messages: message.prompt.messages,
-    });
+    const res = await openAI.chat.completions.create(message.prompt);
 
     return {
       callbackURL: message.callbackURL,

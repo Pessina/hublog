@@ -24,17 +24,27 @@ export const gptPromptSchema = z.object({
   seed: z.number().optional(),
   temperature: z.number().optional(),
   top_p: z.number().optional(),
-  tools: z.array(z.string()).optional(),
+  tools: z
+    .array(
+      z.object({
+        function: z.object({
+          name: z.string(),
+          parameters: z.record(z.unknown()),
+          description: z.string().optional(),
+        }),
+        type: z.literal("function"),
+      })
+    )
+    .optional(),
   tool_choice: z
     .union([
-      z.string(),
+      z.literal("none"),
+      z.literal("auto"),
       z.object({
-        type: z.string(),
-        function: z
-          .object({
-            name: z.string(),
-          })
-          .optional(),
+        type: z.literal("function"),
+        function: z.object({
+          name: z.string(),
+        }),
       }),
     ])
     .optional(),

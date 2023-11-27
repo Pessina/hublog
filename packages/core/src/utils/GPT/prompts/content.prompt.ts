@@ -1,8 +1,8 @@
 import { GPTPrompt } from "../schemas/types";
 
-// TODO: Improve prompt to retrieve only html, without quoted around. You can use the JSON output format
 const cleanContent = (text: string): GPTPrompt => ({
   model: "gpt-3.5-turbo-1106",
+  response_format: { type: "json_object" },
   messages: [
     {
       role: "user",
@@ -17,7 +17,10 @@ const cleanContent = (text: string): GPTPrompt => ({
       NOTE: 
         - Do not change the language of the content
         - Do not remove any HTML tag
-        - Your answer should be the HTML, nothing else, without quotes around the output
+        - Your response must be a JSON object:
+        {{
+          "html": "string"
+        }}
   `,
     },
   ],
@@ -25,6 +28,7 @@ const cleanContent = (text: string): GPTPrompt => ({
 
 const translateText = (text: string, targetLanguage: string): GPTPrompt => ({
   model: "gpt-3.5-turbo-1106",
+  response_format: { type: "json_object" },
   messages: [
     {
       role: "user",
@@ -36,7 +40,10 @@ const translateText = (text: string, targetLanguage: string): GPTPrompt => ({
 
     NOTE: 
       - Do not remove any HTMl tag
-      - Your answer should be the HTML, nothing else, without quotes around the output
+      - Your response must be a JSON object:
+        {{
+          "html": "string"
+        }}
 `,
     },
   ],
@@ -48,6 +55,7 @@ const improveReadability = (
   targetLanguage: string
 ): GPTPrompt => ({
   model: "gpt-3.5-turbo-1106",
+  response_format: { type: "json_object" },
   messages: [
     {
       role: "user",
@@ -60,7 +68,10 @@ const improveReadability = (
     NOTE: 
       - The content should be crafted in a way that is natural for speakers of the target language
       - Do not remove any HTML tag
-      - Your answer should be the HTML, nothing else, without quotes around the output
+      - Your response must be a JSON object:
+        {{
+          "html": "string"
+        }}
 `,
     },
   ],

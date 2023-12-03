@@ -194,19 +194,20 @@ export const processingTranslationTableConsumer = async (
         core.DB.ProcessingTranslation.processingTranslationSchema
       );
 
-      let processingTranslation = await core.DB.ProcessingTranslation.get(
-        processingTranslationInitial.groupId,
-        processingTranslationInitial.partIndex
-      );
-      if (!processingTranslation) {
+      let processingTranslationCurrent =
+        await core.DB.ProcessingTranslation.get(
+          processingTranslationInitial.groupId,
+          processingTranslationInitial.partIndex
+        );
+      if (!processingTranslationCurrent) {
         console.error(
           `No processing translation found for ${processingTranslationInitial.groupId} and ${processingTranslationInitial.partIndex}`
         );
         return;
       }
 
-      const { groupId } = processingTranslation;
-      let { content, status } = processingTranslation;
+      const { groupId } = processingTranslationCurrent;
+      let { content, status } = processingTranslationCurrent;
       const { INITIAL, CLEAN, TRANSLATED, IMPROVED } =
         core.DB.ProcessingTranslation.ProcessingTranslationStatus;
 
@@ -245,7 +246,7 @@ export const processingTranslationTableConsumer = async (
 
       if (status === INITIAL) {
         content = await processTranslationPrompt({
-          ...processingTranslation,
+          ...processingTranslationCurrent,
           status: CLEAN,
           prompt: Utils.GPT.contentPrompts.cleanContent(content),
         });
@@ -254,7 +255,7 @@ export const processingTranslationTableConsumer = async (
 
       if (status === CLEAN) {
         content = await processTranslationPrompt({
-          ...processingTranslation,
+          ...processingTranslationCurrent,
           status: TRANSLATED,
           prompt: Utils.GPT.contentPrompts.translateText(
             content,
@@ -266,7 +267,7 @@ export const processingTranslationTableConsumer = async (
 
       if (status === TRANSLATED) {
         content = await processTranslationPrompt({
-          ...processingTranslation,
+          ...processingTranslationCurrent,
           status: IMPROVED,
           prompt: Utils.GPT.contentPrompts.improveReadability(
             content,

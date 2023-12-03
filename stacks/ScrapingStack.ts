@@ -191,6 +191,7 @@ export function ScrapingStack({ stack }: StackContext) {
           startingPosition: StartingPosition.TRIM_HORIZON,
           batchSize: 10,
           bisectBatchOnError: true,
+          parallelizationFactor: 10,
         },
       },
     },
@@ -213,7 +214,7 @@ export function ScrapingStack({ stack }: StackContext) {
         eventSource: {
           startingPosition: StartingPosition.TRIM_HORIZON,
           batchSize: 1,
-          bisectBatchOnError: true,
+          parallelizationFactor: 10,
         },
       },
     },

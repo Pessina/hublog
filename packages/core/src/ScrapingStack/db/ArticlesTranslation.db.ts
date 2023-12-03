@@ -10,19 +10,24 @@ import { Table } from "sst/node/table";
 const client = new DynamoDBClient();
 const dynamoDB = DynamoDBDocumentClient.from(client);
 
-interface ArticleTranslationInput {
-  source: string;
-  title: string;
-  metaDescription: string;
-  slug: string;
-  html: string;
-  language: string;
-}
+import { z } from "zod";
 
-interface ArticleTranslation extends ArticleTranslationInput {
-  createdAt: string;
-  updatedAt: string;
-}
+export const articleTranslationInputSchema = z.object({
+  source: z.string(),
+  title: z.string(),
+  metaDescription: z.string(),
+  slug: z.string(),
+  html: z.string(),
+  language: z.string(),
+});
+
+export const articleTranslationSchema = articleTranslationInputSchema.extend({
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+type ArticleTranslationInput = z.infer<typeof articleTranslationInputSchema>;
+type ArticleTranslation = z.infer<typeof articleTranslationSchema>;
 
 export const put = async (articleTranslation: ArticleTranslationInput) => {
   const command = new PutCommand({
@@ -47,31 +52,4 @@ export const get = async (
   });
   const res = await dynamoDB.send(command);
   return (res.Item as ArticleTranslation) || null;
-};
-
-export const update = async (
-  source: string,
-  language: string,
-  articleTranslation: Partial<
-    Omit<ArticleTranslationInput, "source" | "language">
-  >
-) => {
-  const command = new UpdateCommand({
-    TableName: Table.TranslatedArticlesTable.tableName,
-    Key: {
-      source: source,
-      language: language,
-    },
-    UpdateExpression:
-      "set title = :t, metaDescription = :m, slug = :s, html = :h, updatedAt = :u",
-    ExpressionAttributeValues: {
-      ":t": articleTranslation.title,
-      ":m": articleTranslation.metaDescription,
-      ":s": articleTranslation.slug,
-      ":h": articleTranslation.html,
-      ":u": new Date().toISOString(),
-    },
-  });
-
-  return await dynamoDB.send(command);
 };

@@ -1,6 +1,6 @@
 import { GPTPrompt } from "../schemas/types";
 
-const cleanContent = (text: string): GPTPrompt => ({
+export const cleanContent = (text: string): GPTPrompt => ({
   model: "gpt-3.5-turbo-1106",
   response_format: { type: "json_object" },
   messages: [
@@ -26,7 +26,10 @@ const cleanContent = (text: string): GPTPrompt => ({
   ],
 });
 
-const translateText = (text: string, targetLanguage: string): GPTPrompt => ({
+export const translateText = (
+  text: string,
+  targetLanguage: string
+): GPTPrompt => ({
   model: "gpt-3.5-turbo-1106",
   response_format: { type: "json_object" },
   messages: [
@@ -50,7 +53,7 @@ const translateText = (text: string, targetLanguage: string): GPTPrompt => ({
 });
 
 // TODO: Add a prompt to break content by headers, paragraph and sections to improve readability
-const improveReadability = (
+export const improveReadability = (
   text: string,
   targetLanguage: string
 ): GPTPrompt => ({
@@ -77,7 +80,10 @@ const improveReadability = (
   ],
 });
 
-const getSEOArgs = (rawHTML: string, targetLanguage: string): GPTPrompt => ({
+export const getSEOArgs = (
+  rawHTML: string,
+  targetLanguage: string
+): GPTPrompt => ({
   model: "gpt-3.5-turbo-1106",
   response_format: { type: "json_object" },
   messages: [
@@ -123,10 +129,3 @@ const getSEOArgs = (rawHTML: string, targetLanguage: string): GPTPrompt => ({
     },
   ],
 });
-
-export const contentPrompts = {
-  getSEOArgs,
-  translateText,
-  cleanContent,
-  improveReadability,
-};

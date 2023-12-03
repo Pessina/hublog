@@ -1,6 +1,6 @@
 import { GPTPrompt } from "../schemas/types";
 
-const getWordPressClassificationArgs = (
+export const getWordPressClassificationArgs = (
   rawHTML: string,
   tags: string[],
   categories: string[]
@@ -29,7 +29,3 @@ const getWordPressClassificationArgs = (
     },
   ],
 });
-
-export const wordPressPrompts = {
-  getWordPressClassificationArgs,
-};

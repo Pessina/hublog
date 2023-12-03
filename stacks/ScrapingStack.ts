@@ -8,7 +8,6 @@ import {
   Config,
 } from "sst/constructs";
 import { UrlEventNames } from "@hublog/core/src/ScrapingStack/url";
-import { ContentAIEventNames } from "@hublog/core/src/ScrapingStack/contentAI";
 import { ImagesEventNames } from "@hublog/core/src/ScrapingStack/images";
 import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import { StartingPosition } from "aws-cdk-lib/aws-lambda";
@@ -78,6 +77,7 @@ export function ScrapingStack({ stack }: StackContext) {
       updatedAt: "string",
     },
     primaryIndex: { partitionKey: "source", sortKey: "language" },
+    stream: true,
   });
 
   const imageBucket = new Bucket(stack, ImagesBucket.IMAGES_BUCKET, {
@@ -171,6 +171,8 @@ export function ScrapingStack({ stack }: StackContext) {
     },
   });
 
+  // TODO: Improve parallelization, the batches can be consumed in parallel. On the current implementation a batch fail will retry the whole batch again increasing costs on OPEN AI.
+  // Also if the batch has only 1 element failing, the whole batch will be retried and the execution of the next batches will be delayed.
   processingTranslationTable.addConsumers(stack, {
     processingTranslationTableConsumer: {
       function: {
@@ -182,12 +184,35 @@ export function ScrapingStack({ stack }: StackContext) {
           processingTranslationTable,
           OPEN_AI_KEY,
         ],
-        timeout: "5 minutes",
+        timeout: "90 seconds",
       },
       cdk: {
         eventSource: {
           startingPosition: StartingPosition.TRIM_HORIZON,
           batchSize: 10,
+          bisectBatchOnError: true,
+        },
+      },
+    },
+  });
+
+  translatedArticlesTable.addConsumers(stack, {
+    translatedArticlesTableConsumer: {
+      function: {
+        handler:
+          "packages/functions/src/scrapingStack.translatedArticlesTableConsumer",
+        bind: [
+          translatedArticlesTable,
+          OPEN_AI_KEY,
+          translationMetadataTable,
+          imageBucket,
+        ],
+        timeout: "30 seconds",
+      },
+      cdk: {
+        eventSource: {
+          startingPosition: StartingPosition.TRIM_HORIZON,
+          batchSize: 1,
           bisectBatchOnError: true,
         },
       },
@@ -207,11 +232,6 @@ export function ScrapingStack({ stack }: StackContext) {
   bus.subscribe(ImagesEventNames.Upload, {
     handler: "packages/functions/src/scrapingStack.imageUploadHandler",
     bind: [bus, imageBucket],
-  });
-
-  bus.subscribe(ContentAIEventNames.CreatedForTranslation, {
-    bind: [imageBucket, translatedArticlesTable],
-    handler: "packages/functions/src/scrapingStack.postWordPressHandler",
   });
 
   stack.addOutputs({

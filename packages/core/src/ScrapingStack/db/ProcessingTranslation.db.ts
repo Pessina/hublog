@@ -132,25 +132,3 @@ export const deleteProcessingTranslationsByGroupId = async (
     }
   }
 };
-
-export const countIncompleteGroupIds = async (): Promise<number> => {
-  const command = new ScanCommand({
-    TableName: Table.ProcessingTranslationTable.tableName,
-    FilterExpression: "#st <> :status",
-    ExpressionAttributeNames: {
-      "#st": "status",
-    },
-    ExpressionAttributeValues: {
-      ":status": { S: "IMPROVED" },
-    },
-  });
-
-  const data = await dynamoDB.send(command);
-
-  if (data.Items) {
-    const uniqueGroupIds = new Set(data.Items.map((item) => item.groupId.S));
-    return uniqueGroupIds.size;
-  }
-
-  return 0;
-};

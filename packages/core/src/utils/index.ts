@@ -3,6 +3,7 @@ import * as GPT from "./GPT";
 import * as error from "./error";
 import zodValidate from "./validation";
 import * as utils from "./utils";
+import * as WordPress from "./wordpress";
 
 const Utils = {
   StateMachine,
@@ -10,6 +11,7 @@ const Utils = {
   GPT,
   error,
   utils,
+  WordPress,
 };
 
 export default Utils;

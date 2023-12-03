@@ -15,7 +15,6 @@ import core from "@hublog/core/src/ScrapingStack";
 import { DynamoDBStreamEvent, SQSEvent } from "aws-lambda";
 import { GPTPrompt } from "@hublog/core/utils/GPT/schemas/types";
 import OpenAI from "openai";
-import { Config } from "sst/node/config";
 import { ProcessingTranslationStatus } from "@hublog/core/ScrapingStack/db/ProcessingTranslation.db";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
@@ -150,13 +149,6 @@ export const translationMetadataQueueConsumer = async (evt: SQSEvent) => {
     core.Queue.TranslationMetadata.translationMetadataQueueMessageSchema
   );
 
-  const processingTranslationCount =
-    await core.DB.ProcessingTranslation.countIncompleteGroupIds();
-  if (processingTranslationCount > 3)
-    throw new Error(
-      `There are already ${processingTranslationCount} translation jobs in progress.`
-    );
-
   const translationMetadata = await core.DB.TranslationMetadata.get(message.id);
   if (!translationMetadata)
     throw new Error(
@@ -182,81 +174,6 @@ export const translationMetadataQueueConsumer = async (evt: SQSEvent) => {
     });
   }
 };
-
-// export const postWordPressHandler = EventHandler(
-//   ContentAIEvents.CreatedForTranslation,
-//   async (evt) => {
-//     const { url, language, email, password, blogURL } = evt.properties;
-//     const articleTranslated = await ArticleTranslationsDB.getArticleTranslation(
-//       url,
-//       language
-//     );
-
-//     if (!articleTranslated) {
-//       throw new Error(
-//         `postWordPressHandler: No article found for ${url} in ${language}`
-//       );
-//     }
-
-//     const wordPress = new WordPress(email, password, blogURL);
-
-//     const getTagsAndCategories = async () => {
-//       const tags = await wordPress.getTags();
-//       const categories = await wordPress.getCategories();
-
-//       const wordPressClassificationArgs =
-//         await ContentAIUtils.getWordPressClassificationArgs(
-//           articleTranslated.html,
-//           tags.map((t) => t.name),
-//           categories.map((c) => c.name)
-//         );
-
-//       const categoriesIds = categories
-//         .filter((c) => wordPressClassificationArgs.categories.includes(c.name))
-//         .map((c) => c.id);
-
-//       const tagsIds = tags
-//         .filter((t) => wordPressClassificationArgs.tags.includes(t.name))
-//         .map((t) => t.id);
-
-//       return {
-//         categoriesIds,
-//         tagsIds,
-//       };
-//     };
-
-//     const getFeaturedImage = async () => {
-//       const src = getFirstImgSrc(articleTranslated.html);
-//       const img = await ImagesBucket.retrieveImageFile(src);
-//       return await wordPress.createMedia(img, src, {
-//         status: "publish",
-//         title: src,
-//       });
-//     };
-
-//     const [htmlWithImages, tagsAndCategories, wordPressImg] = await Promise.all(
-//       [
-//         ScrapUtils.addBackImageUrls(articleTranslated.html),
-//         getTagsAndCategories(),
-//         getFeaturedImage(),
-//       ]
-//     );
-
-//     await wordPress.createPost({
-//       title: articleTranslated.title,
-//       excerpt: articleTranslated.metaDescription,
-//       meta: {
-//         description: articleTranslated.metaDescription,
-//       },
-//       content: htmlWithImages,
-//       status: "publish",
-//       slug: articleTranslated.slug,
-//       categories: tagsAndCategories.categoriesIds,
-//       tags: tagsAndCategories.tagsIds,
-//       featured_media: wordPressImg.id,
-//     });
-//   }
-// );
 
 export const processingTranslationTableConsumer = async (
   evt: DynamoDBStreamEvent
@@ -300,6 +217,32 @@ export const processingTranslationTableConsumer = async (
       if (!translationMetadata)
         throw new Error(`No translation job found for ${groupId}`);
 
+      async function processTranslationPrompt(args: {
+        groupId: string;
+        partIndex: number;
+        totalParts: number;
+        status: ProcessingTranslationStatus;
+        prompt: GPTPrompt;
+      }) {
+        const gptRes = await Utils.GPT.callChatCompletions(args.prompt);
+        if (!gptRes)
+          throw new Error(
+            `processingTranslationTableConsumer: No GPT response for ${args.groupId} and ${args.partIndex}`
+          );
+
+        const content =
+          JSON.parse(gptRes.choices[0].message.content ?? "")?.html ?? "";
+
+        await core.DB.ProcessingTranslation.put({
+          groupId: args.groupId,
+          partIndex: Number(args.partIndex),
+          totalParts: Number(args.totalParts),
+          status: args.status,
+          content,
+        });
+        return content;
+      }
+
       if (status === INITIAL) {
         content = await processTranslationPrompt({
           ...processingTranslation,
@@ -338,13 +281,31 @@ export const processingTranslationTableConsumer = async (
           await core.DB.ProcessingTranslation.validateAndRetrieveProcessingTranslations(
             groupId
           );
+
         if (article) {
+          const articleHTML = article.reduce(
+            (acc, curr) => acc + curr.content,
+            ""
+          );
+          const gptRes = await Utils.GPT.callChatCompletions(
+            Utils.GPT.contentPrompts.getSEOArgs(
+              articleHTML,
+              translationMetadata.language
+            )
+          );
+          if (!gptRes)
+            throw new Error(
+              `processingTranslationTableConsumer: No GPT response for ${groupId}`
+            );
+
+          const seoArgs = JSON.parse(gptRes.choices[0].message.content ?? "");
+
           await core.DB.ArticleTranslations.put({
             source: translationMetadata.originURL,
-            title: "",
-            metaDescription: "",
-            slug: "",
-            html: article.reduce((acc, curr) => acc + curr.content, ""),
+            title: seoArgs.title,
+            metaDescription: seoArgs.metaDescription,
+            slug: seoArgs.slug,
+            html: articleHTML,
             language: translationMetadata.language,
           });
           await core.DB.ProcessingTranslation.deleteProcessingTranslationsByGroupId(
@@ -356,23 +317,114 @@ export const processingTranslationTableConsumer = async (
   );
 };
 
-async function processTranslationPrompt(args: {
-  groupId: string;
-  partIndex: number;
-  totalParts: number;
-  status: ProcessingTranslationStatus;
-  prompt: GPTPrompt;
-}) {
-  const openAI = new OpenAI({ apiKey: Config.OPEN_AI_KEY });
-  const gptRes = await openAI.chat.completions.create(args.prompt);
-  const content =
-    JSON.parse(gptRes.choices[0].message.content ?? "")?.html ?? "";
-  await core.DB.ProcessingTranslation.put({
-    groupId: args.groupId,
-    partIndex: Number(args.partIndex),
-    totalParts: Number(args.totalParts),
-    status: args.status,
-    content,
-  });
-  return content;
-}
+export const translatedArticlesTableConsumer = async (
+  evt: DynamoDBStreamEvent
+) => {
+  const records = evt.Records.filter((r) => r.eventName === "INSERT");
+
+  await Promise.all(
+    records.map(async (r) => {
+      const newImage = r.dynamodb?.NewImage;
+      const translatedArticle = Utils.zodValidate(
+        {
+          source: newImage?.source.S,
+          title: newImage?.title.S,
+          metaDescription: newImage?.metaDescription.S,
+          slug: newImage?.slug.S,
+          html: newImage?.html.S,
+          language: newImage?.language.S,
+          createdAt: newImage?.createdAt.S,
+          updatedAt: newImage?.updatedAt.S,
+        },
+        core.DB.ArticleTranslations.articleTranslationSchema
+      );
+
+      const translationMetadata =
+        await core.DB.TranslationMetadata.getByOriginURLAndLanguage(
+          translatedArticle.source,
+          translatedArticle.language
+        );
+      if (!translationMetadata)
+        throw new Error(`postWordPressHandler: No translation metadata found`);
+
+      await Promise.all(
+        translationMetadata.map(async ({ email, password, blogURL }) => {
+          const wordPress = new Utils.WordPress.WordPress(
+            email,
+            password,
+            blogURL
+          );
+
+          const getTagsAndCategories = async () => {
+            const tags = await wordPress.getTags();
+            const categories = await wordPress.getCategories();
+
+            const prompt =
+              Utils.GPT.wordPressPrompts.getWordPressClassificationArgs(
+                translatedArticle.html,
+                tags.map((t) => t.name),
+                categories.map((c) => c.name)
+              );
+            const gptRes = await Utils.GPT.callChatCompletions(prompt);
+            if (!gptRes)
+              throw new Error(
+                `translatedArticlesTableConsumer: No GPT response for ${translatedArticle.source} and ${translatedArticle.language}`
+              );
+
+            const wordPressClassificationArgs = JSON.parse(
+              gptRes.choices[0].message.content ?? ""
+            );
+
+            const categoriesIds = categories
+              .filter((c) =>
+                wordPressClassificationArgs.categories.includes(c.name)
+              )
+              .map((c) => c.id);
+
+            const tagsIds = tags
+              .filter((t) => wordPressClassificationArgs.tags.includes(t.name))
+              .map((t) => t.id);
+
+            return {
+              categoriesIds,
+              tagsIds,
+            };
+          };
+
+          const getFeaturedImage = async () => {
+            const src = Utils.utils.getFirstImgSrc(translatedArticle.html);
+            const img = await core.S3.ImagesBucket.retrieveImageFile(src);
+            return await wordPress.createMedia(img, src, {
+              status: "publish",
+              title: src,
+            });
+          };
+
+          const [htmlWithImages, tagsAndCategories, wordPressImg] =
+            await Promise.all([
+              ScrapUtils.addBackImageUrls(translatedArticle.html),
+              getTagsAndCategories(),
+              getFeaturedImage(),
+            ]);
+
+          await wordPress.createPost({
+            title: translatedArticle.title,
+            excerpt: translatedArticle.metaDescription,
+            meta: {
+              description: translatedArticle.metaDescription,
+            },
+            content: htmlWithImages,
+            status: "publish",
+            slug: translatedArticle.slug,
+            categories: tagsAndCategories.categoriesIds,
+            tags: tagsAndCategories.tagsIds,
+            featured_media: wordPressImg.id,
+          });
+        })
+      );
+      await core.DB.TranslationMetadata.deleteRecords(
+        translationMetadata.map((t) => t.id)
+      );
+    })
+  );
+};

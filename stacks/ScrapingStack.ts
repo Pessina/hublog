@@ -6,12 +6,15 @@ import {
   Table,
   Queue,
   Config,
+  Function,
 } from "sst/constructs";
 import { UrlEventNames } from "@hublog/core/src/ScrapingStack/url";
 import { ImagesEventNames } from "@hublog/core/src/ScrapingStack/images";
 import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
 import { StartingPosition } from "aws-cdk-lib/aws-lambda";
 import { Duration } from "aws-cdk-lib";
+import { LambdaInvoke } from "aws-cdk-lib/aws-stepfunctions-tasks";
+import { DefinitionBody, StateMachine } from "aws-cdk-lib/aws-stepfunctions";
 
 export function ScrapingStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
@@ -110,13 +113,13 @@ export function ScrapingStack({ stack }: StackContext) {
     },
   });
 
-  const dlq = new Queue(stack, "DlqScrapingStack", {
-    cdk: {
-      queue: {
-        fifo: true,
-      },
-    },
-  });
+  // const dlq = new Queue(stack, "DlqScrapingStack", {
+  //   cdk: {
+  //     queue: {
+  //       fifo: true,
+  //     },
+  //   },
+  // });
 
   const translationMetadataQueue = new Queue(
     stack,
@@ -141,14 +144,14 @@ export function ScrapingStack({ stack }: StackContext) {
       },
       cdk: {
         queue: {
-          visibilityTimeout: Duration.seconds(60),
+          visibilityTimeout: Duration.seconds(30),
           deliveryDelay: Duration.seconds(10),
-          fifo: true,
-          contentBasedDeduplication: true,
-          deadLetterQueue: {
-            maxReceiveCount: 5,
-            queue: dlq.cdk.queue,
-          },
+          // fifo: true,
+          // contentBasedDeduplication: true,
+          // deadLetterQueue: {
+          //   maxReceiveCount: 5,
+          //   queue: dlq.cdk.queue,
+          // },
         },
       },
     }
@@ -171,27 +174,47 @@ export function ScrapingStack({ stack }: StackContext) {
     },
   });
 
-  // TODO: Improve parallelization, the batches can be consumed in parallel. On the current implementation a batch fail will retry the whole batch again increasing costs on OPEN AI.
-  // Also if the batch has only 1 element failing, the whole batch will be retried and the execution of the next batches will be delayed.
+  const translationStateMachine = new StateMachine(
+    stack,
+    "TranslationStateMachine",
+    {
+      definitionBody: DefinitionBody.fromChainable(
+        new LambdaInvoke(stack, "Start translation", {
+          lambdaFunction: new Function(stack, "TranslationHandler", {
+            handler: "packages/functions/src/scrapingStack.translationHandler",
+            bind: [
+              translationMetadataTable,
+              translatedArticlesTable,
+              processingTranslationTable,
+              OPEN_AI_KEY,
+            ],
+            timeout: "90 seconds",
+          }),
+        }).addRetry({
+          interval: Duration.seconds(5),
+          backoffRate: 1.5,
+          maxAttempts: 10,
+        })
+      ),
+      timeout: Duration.hours(1),
+    }
+  );
+
   processingTranslationTable.addConsumers(stack, {
     processingTranslationTableConsumer: {
       function: {
         handler:
           "packages/functions/src/scrapingStack.processingTranslationTableConsumer",
-        bind: [
-          translationMetadataTable,
-          translatedArticlesTable,
-          processingTranslationTable,
-          OPEN_AI_KEY,
-        ],
-        timeout: "90 seconds",
+        environment: {
+          STATE_MACHINE: translationStateMachine.stateMachineArn,
+        },
+        permissions: ["states:StartExecution"],
       },
       cdk: {
         eventSource: {
           startingPosition: StartingPosition.TRIM_HORIZON,
           batchSize: 10,
           bisectBatchOnError: true,
-          parallelizationFactor: 10,
         },
       },
     },

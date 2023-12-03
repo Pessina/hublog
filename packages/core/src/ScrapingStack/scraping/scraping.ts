@@ -20,7 +20,7 @@ export const fetchPage = async (url: string) => {
 
 export async function getHTMLContent(html: string): Promise<string> {
   const secureHTMl = sanitizeHtml(html, {
-    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img", "body"]),
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat(["img"]),
     allowedAttributes: {
       img: ["src", "alt", "title", "width", "height", "loading"],
     },

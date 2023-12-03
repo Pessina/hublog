@@ -47,7 +47,6 @@ export function OpenAIStack({ stack }: StackContext) {
     consumer: {
       function: {
         handler: "packages/functions/src/openAIStack.gptPromptQueueConsumer",
-        bind: [],
         environment: {
           STATE_MACHINE: retryStateMachine.stateMachineArn,
         },

@@ -48,4 +48,19 @@ describe("getFirstImgSrc", () => {
       '<div src="notAnImage.jpg"><span src="alsoNotAnImage.jpg"><img src="test.jpg"></span></div>';
     expect(getFirstImgSrc(html)).toBe("test.jpg");
   });
+
+  it("should return the src of the first image tag when single quotes are used", () => {
+    const html = "<div><img src='test1.jpg'></div><img src='test2.jpg'>";
+    expect(getFirstImgSrc(html)).toBe("test1.jpg");
+  });
+
+  it("should return an empty string if the image tag has no src attribute and single quotes are used", () => {
+    const html = "<div><img></div>";
+    expect(getFirstImgSrc(html)).toBe("");
+  });
+
+  it("should return the src of the first image tag even if it is nested deeply and single quotes are used", () => {
+    const html = "<div><div><div><img src='nested.jpg'></div></div></div>";
+    expect(getFirstImgSrc(html)).toBe("nested.jpg");
+  });
 });

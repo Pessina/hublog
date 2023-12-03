@@ -14,7 +14,6 @@ import Utils from "@hublog/core/utils";
 import core from "@hublog/core/src/ScrapingStack";
 import { DynamoDBStreamEvent, SQSEvent } from "aws-lambda";
 import { GPTPrompt } from "@hublog/core/utils/GPT/schemas/types";
-import OpenAI from "openai";
 import { ProcessingTranslationStatus } from "@hublog/core/ScrapingStack/db/ProcessingTranslation.db";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
@@ -194,128 +193,134 @@ export const processingTranslationTableConsumer = async (
         core.DB.ProcessingTranslation.processingTranslationSchema
       );
 
-      let processingTranslationCurrent =
-        await core.DB.ProcessingTranslation.get(
-          processingTranslationInitial.groupId,
-          processingTranslationInitial.partIndex
-        );
-      if (!processingTranslationCurrent) {
-        console.error(
-          `No processing translation found for ${processingTranslationInitial.groupId} and ${processingTranslationInitial.partIndex}`
-        );
-        return;
-      }
+      await Utils.StateMachine.startStateMachine(
+        process.env.STATE_MACHINE ?? "",
+        JSON.stringify(processingTranslationInitial)
+      );
+    })
+  );
+};
 
-      const { groupId } = processingTranslationCurrent;
-      let { content, status } = processingTranslationCurrent;
-      const { INITIAL, CLEAN, TRANSLATED, IMPROVED } =
-        core.DB.ProcessingTranslation.ProcessingTranslationStatus;
+export const translationHandler = async (evt: any) => {
+  const processingTranslationInitial = Utils.zodValidate(
+    evt,
+    core.DB.ProcessingTranslation.processingTranslationSchema
+  );
 
-      const translationMetadata = await core.DB.TranslationMetadata.get(
+  let processingTranslationCurrent = await core.DB.ProcessingTranslation.get(
+    processingTranslationInitial.groupId,
+    processingTranslationInitial.partIndex
+  );
+  if (!processingTranslationCurrent) {
+    console.error(
+      `No processing translation found for ${processingTranslationInitial.groupId} and ${processingTranslationInitial.partIndex}`
+    );
+    return;
+  }
+
+  const { groupId } = processingTranslationCurrent;
+  let { content, status } = processingTranslationCurrent;
+  const { INITIAL, CLEAN, TRANSLATED, IMPROVED } =
+    core.DB.ProcessingTranslation.ProcessingTranslationStatus;
+
+  const translationMetadata = await core.DB.TranslationMetadata.get(groupId);
+
+  if (!translationMetadata)
+    throw new Error(`No translation job found for ${groupId}`);
+
+  async function processTranslationPrompt(args: {
+    groupId: string;
+    partIndex: number;
+    totalParts: number;
+    status: ProcessingTranslationStatus;
+    prompt: GPTPrompt;
+  }) {
+    const gptRes = await Utils.GPT.callChatCompletions(args.prompt);
+    if (!gptRes)
+      throw new Error(
+        `processingTranslationTableConsumer: No GPT response for ${args.groupId} and ${args.partIndex}`
+      );
+
+    const content =
+      JSON.parse(gptRes.choices[0].message.content ?? "")?.html ?? "";
+
+    await core.DB.ProcessingTranslation.put({
+      groupId: args.groupId,
+      partIndex: Number(args.partIndex),
+      totalParts: Number(args.totalParts),
+      status: args.status,
+      content,
+    });
+    return content;
+  }
+
+  if (status === INITIAL) {
+    content = await processTranslationPrompt({
+      ...processingTranslationCurrent,
+      status: CLEAN,
+      prompt: Utils.GPT.contentPrompts.cleanContent(content),
+    });
+    status = CLEAN;
+  }
+
+  if (status === CLEAN) {
+    content = await processTranslationPrompt({
+      ...processingTranslationCurrent,
+      status: TRANSLATED,
+      prompt: Utils.GPT.contentPrompts.translateText(
+        content,
+        translationMetadata?.language
+      ),
+    });
+    status = TRANSLATED;
+  }
+
+  if (status === TRANSLATED) {
+    content = await processTranslationPrompt({
+      ...processingTranslationCurrent,
+      status: IMPROVED,
+      prompt: Utils.GPT.contentPrompts.improveReadability(
+        content,
+        translationMetadata?.language
+      ),
+    });
+    status = IMPROVED;
+  }
+
+  if (status === IMPROVED) {
+    const article =
+      await core.DB.ProcessingTranslation.validateAndRetrieveProcessingTranslations(
         groupId
       );
 
-      if (!translationMetadata)
-        throw new Error(`No translation job found for ${groupId}`);
+    if (article) {
+      const articleHTML = article.reduce((acc, curr) => acc + curr.content, "");
+      const gptRes = await Utils.GPT.callChatCompletions(
+        Utils.GPT.contentPrompts.getSEOArgs(
+          articleHTML,
+          translationMetadata.language
+        )
+      );
+      if (!gptRes)
+        throw new Error(
+          `processingTranslationTableConsumer: No GPT response for ${groupId}`
+        );
 
-      async function processTranslationPrompt(args: {
-        groupId: string;
-        partIndex: number;
-        totalParts: number;
-        status: ProcessingTranslationStatus;
-        prompt: GPTPrompt;
-      }) {
-        const gptRes = await Utils.GPT.callChatCompletions(args.prompt);
-        if (!gptRes)
-          throw new Error(
-            `processingTranslationTableConsumer: No GPT response for ${args.groupId} and ${args.partIndex}`
-          );
+      const seoArgs = JSON.parse(gptRes.choices[0].message.content ?? "");
 
-        const content =
-          JSON.parse(gptRes.choices[0].message.content ?? "")?.html ?? "";
-
-        await core.DB.ProcessingTranslation.put({
-          groupId: args.groupId,
-          partIndex: Number(args.partIndex),
-          totalParts: Number(args.totalParts),
-          status: args.status,
-          content,
-        });
-        return content;
-      }
-
-      if (status === INITIAL) {
-        content = await processTranslationPrompt({
-          ...processingTranslationCurrent,
-          status: CLEAN,
-          prompt: Utils.GPT.contentPrompts.cleanContent(content),
-        });
-        status = CLEAN;
-      }
-
-      if (status === CLEAN) {
-        content = await processTranslationPrompt({
-          ...processingTranslationCurrent,
-          status: TRANSLATED,
-          prompt: Utils.GPT.contentPrompts.translateText(
-            content,
-            translationMetadata?.language
-          ),
-        });
-        status = TRANSLATED;
-      }
-
-      if (status === TRANSLATED) {
-        content = await processTranslationPrompt({
-          ...processingTranslationCurrent,
-          status: IMPROVED,
-          prompt: Utils.GPT.contentPrompts.improveReadability(
-            content,
-            translationMetadata?.language
-          ),
-        });
-        status = IMPROVED;
-      }
-
-      if (status === IMPROVED) {
-        const article =
-          await core.DB.ProcessingTranslation.validateAndRetrieveProcessingTranslations(
-            groupId
-          );
-
-        if (article) {
-          const articleHTML = article.reduce(
-            (acc, curr) => acc + curr.content,
-            ""
-          );
-          const gptRes = await Utils.GPT.callChatCompletions(
-            Utils.GPT.contentPrompts.getSEOArgs(
-              articleHTML,
-              translationMetadata.language
-            )
-          );
-          if (!gptRes)
-            throw new Error(
-              `processingTranslationTableConsumer: No GPT response for ${groupId}`
-            );
-
-          const seoArgs = JSON.parse(gptRes.choices[0].message.content ?? "");
-
-          await core.DB.ArticleTranslations.put({
-            source: translationMetadata.originURL,
-            title: seoArgs.title,
-            metaDescription: seoArgs.metaDescription,
-            slug: seoArgs.slug,
-            html: articleHTML,
-            language: translationMetadata.language,
-          });
-          await core.DB.ProcessingTranslation.deleteProcessingTranslationsByGroupId(
-            groupId
-          );
-        }
-      }
-    })
-  );
+      await core.DB.TranslatedArticles.put({
+        source: translationMetadata.originURL,
+        title: seoArgs.title,
+        metaDescription: seoArgs.metaDescription,
+        slug: seoArgs.slug,
+        html: articleHTML,
+        language: translationMetadata.language,
+      });
+      await core.DB.ProcessingTranslation.deleteProcessingTranslationsByGroupId(
+        groupId
+      );
+    }
+  }
 };
 
 export const translatedArticlesTableConsumer = async (
@@ -337,7 +342,7 @@ export const translatedArticlesTableConsumer = async (
           createdAt: newImage?.createdAt.S,
           updatedAt: newImage?.updatedAt.S,
         },
-        core.DB.ArticleTranslations.articleTranslationSchema
+        core.DB.TranslatedArticles.translatedArticlesSchema
       );
 
       const translationMetadata =

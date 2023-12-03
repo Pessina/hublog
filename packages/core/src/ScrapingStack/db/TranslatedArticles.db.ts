@@ -3,7 +3,6 @@ import {
   DynamoDBDocumentClient,
   PutCommand,
   GetCommand,
-  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { Table } from "sst/node/table";
 
@@ -12,7 +11,7 @@ const dynamoDB = DynamoDBDocumentClient.from(client);
 
 import { z } from "zod";
 
-export const articleTranslationInputSchema = z.object({
+export const translatedArticlesInputSchema = z.object({
   source: z.string(),
   title: z.string(),
   metaDescription: z.string(),
@@ -21,19 +20,19 @@ export const articleTranslationInputSchema = z.object({
   language: z.string(),
 });
 
-export const articleTranslationSchema = articleTranslationInputSchema.extend({
+export const translatedArticlesSchema = translatedArticlesInputSchema.extend({
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 
-type ArticleTranslationInput = z.infer<typeof articleTranslationInputSchema>;
-type ArticleTranslation = z.infer<typeof articleTranslationSchema>;
+type TranslatedArticleInput = z.infer<typeof translatedArticlesInputSchema>;
+type TranslatedArticle = z.infer<typeof translatedArticlesSchema>;
 
-export const put = async (articleTranslation: ArticleTranslationInput) => {
+export const put = async (translatedArticle: TranslatedArticleInput) => {
   const command = new PutCommand({
     TableName: Table.TranslatedArticlesTable.tableName,
     Item: {
-      ...articleTranslation,
+      ...translatedArticle,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
@@ -45,11 +44,11 @@ export const put = async (articleTranslation: ArticleTranslationInput) => {
 export const get = async (
   source: string,
   language: string
-): Promise<ArticleTranslation | null> => {
+): Promise<TranslatedArticle | null> => {
   const command = new GetCommand({
     TableName: Table.TranslatedArticlesTable.tableName,
     Key: { source, language },
   });
   const res = await dynamoDB.send(command);
-  return (res.Item as ArticleTranslation) || null;
+  return (res.Item as TranslatedArticle) || null;
 };

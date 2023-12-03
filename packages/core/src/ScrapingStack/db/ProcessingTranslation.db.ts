@@ -53,7 +53,7 @@ export const put = async (args: ProcessingTranslation): Promise<void> => {
   }
 };
 
-const get = async (
+export const get = async (
   groupId: string,
   partIndex: number
 ): Promise<ProcessingTranslation | null> => {

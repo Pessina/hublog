@@ -1,4 +1,4 @@
-import { Api, ApiHandler } from "sst/node/api";
+import { ApiHandler } from "sst/node/api";
 import crypto from "crypto";
 
 import { EventHandler } from "sst/node/event-bus";
@@ -14,6 +14,8 @@ import Utils from "@hublog/core/utils";
 import core from "@hublog/core/src/ScrapingStack";
 import { DynamoDBStreamEvent, SQSEvent } from "aws-lambda";
 import { GPTPrompt } from "@hublog/core/utils/GPT/schemas/types";
+import OpenAI from "openai";
+import { Config } from "sst/node/config";
 import { ProcessingTranslationStatus } from "@hublog/core/ScrapingStack/db/ProcessingTranslation.db";
 
 export const sitemapUrlHandler = ApiHandler(async (evt) => {
@@ -259,71 +261,82 @@ export const translationMetadataQueueConsumer = async (evt: SQSEvent) => {
 export const processingTranslationTableConsumer = async (
   evt: DynamoDBStreamEvent
 ) => {
-  const records = evt.Records.filter(
-    (r) => r.eventName === "INSERT" || r.eventName === "MODIFY"
-  );
+  const records = evt.Records.filter((r) => r.eventName === "INSERT");
 
-  for (const r of records) {
-    const newImage = r.dynamodb?.NewImage;
-    const processingTranslation = Utils.zodValidate(
-      {
-        groupId: newImage?.groupId.S,
-        partIndex: Number(newImage?.partIndex.N),
-        totalParts: Number(newImage?.totalParts.N),
-        status: newImage?.status.S,
-        content: newImage?.content.S,
-      },
-      core.DB.ProcessingTranslation.processingTranslationSchema
-    );
-
-    const params = new URLSearchParams({
-      groupId: processingTranslation.groupId,
-      partIndex: processingTranslation.partIndex.toString(),
-      totalParts: processingTranslation.totalParts.toString(),
-    });
-    const url = new URL(
-      `${Api.ScrapingStackAPI.url}/processing-translation-api-handler?${params}`
-    );
-
-    const translationMetadata = await core.DB.TranslationMetadata.get(
-      processingTranslation.groupId
-    );
-
-    if (!translationMetadata)
-      throw new Error(
-        `No translation job found for ${processingTranslation.groupId}`
+  await Promise.all(
+    records.map(async (r) => {
+      const newImage = r.dynamodb?.NewImage;
+      const processingTranslationInitial = Utils.zodValidate(
+        {
+          groupId: newImage?.groupId.S,
+          partIndex: Number(newImage?.partIndex.N),
+          totalParts: Number(newImage?.totalParts.N),
+          status: newImage?.status.S,
+          content: newImage?.content.S,
+        },
+        core.DB.ProcessingTranslation.processingTranslationSchema
       );
 
-    let prompt: GPTPrompt | undefined = undefined;
+      let processingTranslation = await core.DB.ProcessingTranslation.get(
+        processingTranslationInitial.groupId,
+        processingTranslationInitial.partIndex
+      );
+      if (!processingTranslation) {
+        console.error(
+          `No processing translation found for ${processingTranslationInitial.groupId} and ${processingTranslationInitial.partIndex}`
+        );
+        return;
+      }
 
-    const { INITIAL, CLEAN, TRANSLATED, IMPROVED } =
-      core.DB.ProcessingTranslation.ProcessingTranslationStatus;
+      const { groupId } = processingTranslation;
+      let { content, status } = processingTranslation;
+      const { INITIAL, CLEAN, TRANSLATED, IMPROVED } =
+        core.DB.ProcessingTranslation.ProcessingTranslationStatus;
 
-    switch (processingTranslation.status) {
-      case INITIAL:
-        url.searchParams.set("status", CLEAN);
-        prompt = Utils.GPT.contentPrompts.cleanContent(
-          processingTranslation.content
-        );
-        break;
-      case CLEAN:
-        url.searchParams.set("status", TRANSLATED);
-        prompt = Utils.GPT.contentPrompts.translateText(
-          processingTranslation.content,
-          translationMetadata?.language
-        );
-        break;
-      case TRANSLATED:
-        url.searchParams.set("status", IMPROVED);
-        prompt = Utils.GPT.contentPrompts.improveReadability(
-          processingTranslation.content,
-          translationMetadata?.language
-        );
-        break;
-      case IMPROVED:
+      const translationMetadata = await core.DB.TranslationMetadata.get(
+        groupId
+      );
+
+      if (!translationMetadata)
+        throw new Error(`No translation job found for ${groupId}`);
+
+      if (status === INITIAL) {
+        content = await processTranslationPrompt({
+          ...processingTranslation,
+          status: CLEAN,
+          prompt: Utils.GPT.contentPrompts.cleanContent(content),
+        });
+        status = CLEAN;
+      }
+
+      if (status === CLEAN) {
+        content = await processTranslationPrompt({
+          ...processingTranslation,
+          status: TRANSLATED,
+          prompt: Utils.GPT.contentPrompts.translateText(
+            content,
+            translationMetadata?.language
+          ),
+        });
+        status = TRANSLATED;
+      }
+
+      if (status === TRANSLATED) {
+        content = await processTranslationPrompt({
+          ...processingTranslation,
+          status: IMPROVED,
+          prompt: Utils.GPT.contentPrompts.improveReadability(
+            content,
+            translationMetadata?.language
+          ),
+        });
+        status = IMPROVED;
+      }
+
+      if (status === IMPROVED) {
         const article =
           await core.DB.ProcessingTranslation.validateAndRetrieveProcessingTranslations(
-            processingTranslation.groupId
+            groupId
           );
         if (article) {
           await core.DB.ArticleTranslations.put({
@@ -335,82 +348,31 @@ export const processingTranslationTableConsumer = async (
             language: translationMetadata.language,
           });
           await core.DB.ProcessingTranslation.deleteProcessingTranslationsByGroupId(
-            processingTranslation.groupId
+            groupId
           );
         }
-        continue;
-    }
-
-    const response = await fetch(`${process.env.OPEN_AI_SERVICE_URL}/chatgpt`, {
-      method: "POST",
-      body: JSON.stringify({
-        prompt,
-        callbackURL: url.toString(),
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch from OpenAI Service. HTTP status: ${
-          response.status
-        }. body: ${JSON.stringify({
-          prompt,
-          callbackURL: url.toString(),
-        })}`
-      );
-    }
-  }
+      }
+    })
+  );
 };
 
-export const processingTranslationAPIHandler = ApiHandler(async (evt) => {
-  try {
-    if (!evt.queryStringParameters)
-      throw new Error("No query string parameters found");
-
-    const res = Utils.zodValidate(
-      JSON.parse(evt.body ?? ""),
-      Utils.GPT.responseSchema
-    );
-
-    const { groupId, status, partIndex, totalParts } =
-      evt.queryStringParameters;
-
-    if (
-      !groupId ||
-      !status ||
-      partIndex === undefined ||
-      partIndex === null ||
-      totalParts === undefined ||
-      totalParts === null
-    ) {
-      throw new Error(
-        `Invalid or missing parameters. ${evt.queryStringParameters} `
-      );
-    }
-
-    const html = JSON.parse(res.choices[0].message.content)?.html;
-    if (!html)
-      throw new Error(
-        `No html found in response. ${JSON.stringify(res.choices[0].message)}`
-      );
-
-    await core.DB.ProcessingTranslation.put({
-      groupId,
-      partIndex: Number(partIndex),
-      totalParts: Number(totalParts),
-      status: status as ProcessingTranslationStatus,
-      content: html,
-    });
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ message: "Success" }),
-    };
-  } catch (error) {
-    console.error(error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: "Internal Server Error" }),
-    };
-  }
-});
+async function processTranslationPrompt(args: {
+  groupId: string;
+  partIndex: number;
+  totalParts: number;
+  status: ProcessingTranslationStatus;
+  prompt: GPTPrompt;
+}) {
+  const openAI = new OpenAI({ apiKey: Config.OPEN_AI_KEY });
+  const gptRes = await openAI.chat.completions.create(args.prompt);
+  const content =
+    JSON.parse(gptRes.choices[0].message.content ?? "")?.html ?? "";
+  await core.DB.ProcessingTranslation.put({
+    groupId: args.groupId,
+    partIndex: Number(args.partIndex),
+    totalParts: Number(args.totalParts),
+    status: args.status,
+    content,
+  });
+  return content;
+}

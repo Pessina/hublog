@@ -4,19 +4,18 @@ import {
   EventBus,
   Bucket,
   Table,
-  use,
   Queue,
+  Config,
 } from "sst/constructs";
 import { UrlEventNames } from "@hublog/core/src/ScrapingStack/url";
 import { ContentAIEventNames } from "@hublog/core/src/ScrapingStack/contentAI";
 import { ImagesEventNames } from "@hublog/core/src/ScrapingStack/images";
 import { ImagesBucket } from "@hublog/core/src/ScrapingStack/s3";
-import { OpenAIStack } from "./OpenAIStack";
 import { StartingPosition } from "aws-cdk-lib/aws-lambda";
 import { Duration } from "aws-cdk-lib";
 
 export function ScrapingStack({ stack }: StackContext) {
-  const { ApiEndpoint: openAIServiceURL } = use(OpenAIStack);
+  const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
 
   const bus = new EventBus(stack, "bus", {
     defaults: {
@@ -132,6 +131,7 @@ export function ScrapingStack({ stack }: StackContext) {
             processingTranslationTable,
             translationMetadataTable,
           ],
+          timeout: "30 seconds",
         },
         cdk: {
           eventSource: {
@@ -177,30 +177,19 @@ export function ScrapingStack({ stack }: StackContext) {
         handler:
           "packages/functions/src/scrapingStack.processingTranslationTableConsumer",
         bind: [
-          api,
           translationMetadataTable,
           translatedArticlesTable,
           processingTranslationTable,
+          OPEN_AI_KEY,
         ],
-        environment: {
-          OPEN_AI_SERVICE_URL: openAIServiceURL,
-        },
+        timeout: "5 minutes",
       },
       cdk: {
         eventSource: {
           startingPosition: StartingPosition.TRIM_HORIZON,
-          batchSize: 1,
+          batchSize: 10,
+          bisectBatchOnError: true,
         },
-      },
-    },
-  });
-
-  api.addRoutes(stack, {
-    "POST /processing-translation-api-handler": {
-      function: {
-        bind: [processingTranslationTable],
-        handler:
-          "packages/functions/src/scrapingStack.processingTranslationAPIHandler",
       },
     },
   });

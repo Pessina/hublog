@@ -1,6 +1,6 @@
 import { SSTConfig } from "sst";
 import { ScrapingStack } from "./stacks/ScrapingStack";
-import { OpenAIStack } from "./stacks/OpenAIStack";
+// import { OpenAIStack } from "./stacks/OpenAIStack";
 
 export default {
   config(_input) {
@@ -10,6 +10,8 @@ export default {
     };
   },
   stacks(app) {
-    app.stack(OpenAIStack).stack(ScrapingStack);
+    app
+      // .stack(OpenAIStack)
+      .stack(ScrapingStack);
   },
 } satisfies SSTConfig;

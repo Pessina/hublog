@@ -148,6 +148,13 @@ export const translationMetadataQueueConsumer = async (evt: SQSEvent) => {
     core.Queue.TranslationMetadata.translationMetadataQueueMessageSchema
   );
 
+  const processingCount =
+    await core.DB.ProcessingTranslation.countIncompleteGroupIds();
+  if (processingCount > 2)
+    throw new Error(
+      `There are ${processingCount} processing translations in progress. Please wait.`
+    );
+
   const translationMetadata = await core.DB.TranslationMetadata.get(message.id);
   if (!translationMetadata)
     throw new Error(
@@ -322,6 +329,12 @@ export const translationHandler = async (evt: any) => {
     }
   }
 };
+
+// const translationHandlerFail = async (evt: any) => {
+//   await core.DB.ProcessingTranslation.deleteProcessingTranslationsByGroupId(
+//     groupId
+//   );
+// }
 
 export const translatedArticlesTableConsumer = async (
   evt: DynamoDBStreamEvent

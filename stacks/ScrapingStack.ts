@@ -40,6 +40,7 @@ export function ScrapingStack({ stack }: StackContext) {
     "TranslationMetadataTable",
     {
       fields: {
+        // TODO: The ID can be the blog URL + language + originURL
         id: "string",
         blogURL: "string",
         language: "string",
@@ -113,13 +114,13 @@ export function ScrapingStack({ stack }: StackContext) {
     },
   });
 
-  // const dlq = new Queue(stack, "DlqScrapingStack", {
-  //   cdk: {
-  //     queue: {
-  //       fifo: true,
-  //     },
-  //   },
-  // });
+  const dlq = new Queue(stack, "DlqScrapingStack", {
+    cdk: {
+      queue: {
+        fifo: true,
+      },
+    },
+  });
 
   const translationMetadataQueue = new Queue(
     stack,
@@ -146,12 +147,12 @@ export function ScrapingStack({ stack }: StackContext) {
         queue: {
           visibilityTimeout: Duration.seconds(30),
           deliveryDelay: Duration.seconds(10),
-          // fifo: true,
-          // contentBasedDeduplication: true,
-          // deadLetterQueue: {
-          //   maxReceiveCount: 5,
-          //   queue: dlq.cdk.queue,
-          // },
+          fifo: true,
+          contentBasedDeduplication: true,
+          deadLetterQueue: {
+            maxReceiveCount: 30,
+            queue: dlq.cdk.queue,
+          },
         },
       },
     }
@@ -174,6 +175,7 @@ export function ScrapingStack({ stack }: StackContext) {
     },
   });
 
+  // Process the translation entries individually, so we avoid unnecessary batch retries using GPT, what's very expensive
   const translationStateMachine = new StateMachine(
     stack,
     "TranslationStateMachine",
@@ -189,12 +191,14 @@ export function ScrapingStack({ stack }: StackContext) {
               OPEN_AI_KEY,
             ],
             timeout: "90 seconds",
+            // reservedConcurrentExecutions: 10,
           }),
         }).addRetry({
           interval: Duration.seconds(5),
           backoffRate: 1.5,
-          maxAttempts: 10,
+          maxAttempts: 20,
         })
+        // TODO: Add a catch block to either re-add the failing entry to the DB and re-trigger the StateMachine or delete all the GroupId entries from the DB and notify the user
       ),
       timeout: Duration.hours(1),
     }
@@ -214,7 +218,6 @@ export function ScrapingStack({ stack }: StackContext) {
         eventSource: {
           startingPosition: StartingPosition.TRIM_HORIZON,
           batchSize: 10,
-          bisectBatchOnError: true,
         },
       },
     },
@@ -236,7 +239,9 @@ export function ScrapingStack({ stack }: StackContext) {
       cdk: {
         eventSource: {
           startingPosition: StartingPosition.TRIM_HORIZON,
+          // The batch must be 1, because the function is not idempotent, it will post the same article multiple times
           batchSize: 1,
+          bisectBatchOnError: true,
           parallelizationFactor: 10,
         },
       },

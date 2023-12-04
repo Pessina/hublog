@@ -22,7 +22,7 @@ export async function emit(request: TranslationMetadataQueueMessageSchema) {
   const command = new SendMessageCommand({
     QueueUrl: Queue.TranslationMetadataQueue.queueUrl,
     MessageBody: JSON.stringify(message),
-    // MessageGroupId: "ID",
+    MessageGroupId: "ID",
   });
 
   return await client.send(command);

@@ -177,6 +177,7 @@ export const translationMetadataQueueConsumer = async (evt: SQSEvent) => {
       totalParts: headersArr.length,
       status: core.DB.ProcessingTranslation.ProcessingTranslationStatus.INITIAL,
       content: text,
+      retries: 0,
     });
   }
 };
@@ -196,6 +197,7 @@ export const processingTranslationTableConsumer = async (
           totalParts: Number(newImage?.totalParts.N),
           status: newImage?.status.S,
           content: newImage?.content.S,
+          retries: Number(newImage?.retries.N),
         },
         core.DB.ProcessingTranslation.processingTranslationSchema
       );
@@ -224,6 +226,12 @@ export const translationHandler = async (evt: any) => {
     );
     return;
   }
+
+  await core.DB.ProcessingTranslation.updateRetries(
+    processingTranslationCurrent.groupId,
+    processingTranslationCurrent.partIndex,
+    processingTranslationCurrent.retries + 1
+  );
 
   const { groupId } = processingTranslationCurrent;
   let { content, status } = processingTranslationCurrent;
@@ -257,6 +265,7 @@ export const translationHandler = async (evt: any) => {
       totalParts: Number(args.totalParts),
       status: args.status,
       content,
+      retries: 0,
     });
     return content;
   }
@@ -330,11 +339,21 @@ export const translationHandler = async (evt: any) => {
   }
 };
 
-// const translationHandlerFail = async (evt: any) => {
-//   await core.DB.ProcessingTranslation.deleteProcessingTranslationsByGroupId(
-//     groupId
-//   );
-// }
+export const translationHandlerFail = async () => {
+  const entries =
+    await core.DB.ProcessingTranslation.getEntriesWithRetriesAbove(20);
+  const uniqueEntriesIds = new Set(entries.map((e) => e.groupId));
+  await Promise.all(
+    [...uniqueEntriesIds].map((e) =>
+      core.DB.ProcessingTranslation.deleteProcessingTranslationsByGroupId(e)
+    )
+  );
+  await core.SES.sendEmail({
+    subject: "Article not translated",
+    body: [...uniqueEntriesIds].join("\n"),
+    addresses: ["fs.pessina@gmail.com"],
+  });
+};
 
 export const translatedArticlesTableConsumer = async (
   evt: DynamoDBStreamEvent

@@ -63,6 +63,7 @@ export function ScrapingStack({ stack }: StackContext) {
         totalParts: "number",
         status: "string",
         content: "string",
+        retries: "number",
       },
       primaryIndex: { partitionKey: "groupId", sortKey: "partIndex" },
       stream: true,
@@ -193,12 +194,25 @@ export function ScrapingStack({ stack }: StackContext) {
             timeout: "90 seconds",
             // reservedConcurrentExecutions: 10,
           }),
-        }).addRetry({
-          interval: Duration.seconds(5),
-          backoffRate: 1.5,
-          maxAttempts: 20,
         })
-        // TODO: Add a catch block to either re-add the failing entry to the DB and re-trigger the StateMachine or delete all the GroupId entries from the DB and notify the user
+          .addRetry({
+            interval: Duration.seconds(5),
+            backoffRate: 1.5,
+            maxAttempts: 20,
+          })
+          .addCatch(
+            new LambdaInvoke(stack, "Catch translation", {
+              lambdaFunction: new Function(stack, "TranslationHandlerFail", {
+                handler:
+                  "packages/functions/src/scrapingStack.translationHandlerFail",
+                bind: [processingTranslationTable],
+              }),
+            }).addRetry({
+              interval: Duration.seconds(3),
+              backoffRate: 1.1,
+              maxAttempts: 20,
+            })
+          )
       ),
       timeout: Duration.hours(1),
     }

@@ -4,6 +4,7 @@ import {
   DynamoDBDocumentClient,
   PutCommand,
   QueryCommand,
+  UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { Table } from "sst/node/table";
 
@@ -26,6 +27,7 @@ export const processingTranslationSchema = z.object({
   totalParts: z.number(),
   status: z.nativeEnum(ProcessingTranslationStatus),
   content: z.string(),
+  retries: z.number(),
 });
 
 type ProcessingTranslation = z.infer<typeof processingTranslationSchema>;
@@ -47,6 +49,7 @@ export const put = async (args: ProcessingTranslation): Promise<void> => {
         totalParts: args.totalParts,
         status: args.status,
         content: args.content,
+        retries: args.retries,
       },
     });
     await dynamoDB.send(command);
@@ -153,4 +156,48 @@ export const countIncompleteGroupIds = async (): Promise<number> => {
   }
 
   return 0;
+};
+
+export const updateRetries = async (
+  groupId: string,
+  partIndex: number,
+  retries: number
+): Promise<void> => {
+  const command = new UpdateCommand({
+    TableName: Table.ProcessingTranslationTable.tableName,
+    Key: {
+      groupId,
+      partIndex,
+    },
+    UpdateExpression: "set retries = :r",
+    ExpressionAttributeValues: {
+      ":r": Number(retries),
+    },
+  });
+  await dynamoDB.send(command);
+};
+
+export const getEntriesWithRetriesAbove = async (
+  retriesThreshold: number
+): Promise<Array<ProcessingTranslation>> => {
+  const command = new ScanCommand({
+    TableName: Table.ProcessingTranslationTable.tableName,
+    FilterExpression: "retries > :retries",
+    ExpressionAttributeValues: {
+      ":retries": { N: retriesThreshold.toString() },
+    },
+  });
+
+  const data = await dynamoDB.send(command);
+
+  return data.Items
+    ? data.Items.map((item) => ({
+        groupId: item.groupId.S || "",
+        partIndex: Number(item.partIndex.N),
+        totalParts: Number(item.totalParts.N),
+        status: item.status.S as ProcessingTranslationStatus,
+        content: item.content.S || "",
+        retries: Number(item.retries.N),
+      }))
+    : [];
 };

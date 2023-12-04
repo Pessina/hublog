@@ -76,7 +76,7 @@ export const sitemapHandler = EventHandler(
     const { url, destinations } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
     // TODO: Remove slice
-    await UrlUtils.createEventsForUrls(urls.slice(0, 3), destinations);
+    await UrlUtils.createEventsForUrls(urls.slice(0, 30), destinations);
   }
 );
 
@@ -162,10 +162,12 @@ export const translationMetadataQueueConsumer = async (evt: SQSEvent) => {
     );
 
   let scrap = await ScrapsDB.getScrap(translationMetadata?.originURL);
-  if (!scrap)
-    throw new Error(
+  if (!scrap) {
+    console.error(
       `No scrap found for ${translationMetadata?.originURL} in ${translationMetadata?.language}`
     );
+    return;
+  }
 
   const headersArr = ScrapUtils.breakHTMLByHeaders(scrap.html);
 

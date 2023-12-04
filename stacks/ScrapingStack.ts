@@ -147,7 +147,7 @@ export function ScrapingStack({ stack }: StackContext) {
       cdk: {
         queue: {
           visibilityTimeout: Duration.seconds(30),
-          deliveryDelay: Duration.seconds(10),
+          deliveryDelay: Duration.seconds(60),
           fifo: true,
           contentBasedDeduplication: true,
           deadLetterQueue: {

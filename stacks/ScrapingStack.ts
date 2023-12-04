@@ -123,6 +123,7 @@ export function ScrapingStack({ stack }: StackContext) {
     },
   });
 
+  // Batch size 1 and FIFO is important, because we wanna make sure we won't run in parallel and the order is preserved
   const translationMetadataQueue = new Queue(
     stack,
     "TranslationMetadataQueue",

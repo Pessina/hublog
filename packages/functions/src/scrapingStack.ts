@@ -358,7 +358,9 @@ export const translationHandlerFail = async () => {
 export const translatedArticlesTableConsumer = async (
   evt: DynamoDBStreamEvent
 ) => {
-  const records = evt.Records.filter((r) => r.eventName === "INSERT");
+  const records = evt.Records.filter(
+    (r) => r.eventName === "INSERT" || r.eventName === "MODIFY"
+  );
 
   await Promise.all(
     records.map(async (r) => {

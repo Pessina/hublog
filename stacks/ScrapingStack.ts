@@ -151,7 +151,7 @@ export function ScrapingStack({ stack }: StackContext) {
           fifo: true,
           contentBasedDeduplication: true,
           deadLetterQueue: {
-            maxReceiveCount: 30,
+            maxReceiveCount: 10,
             queue: dlq.cdk.queue,
           },
         },

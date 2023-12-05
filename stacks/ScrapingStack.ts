@@ -35,6 +35,17 @@ export function ScrapingStack({ stack }: StackContext) {
     primaryIndex: { partitionKey: "source" },
   });
 
+  const failingTranslationTable = new Table(stack, "FailingTranslationTable", {
+    fields: {
+      originURL: "string",
+      language: "string",
+      reason: "string",
+      createdAt: "string",
+      updatedAt: "string",
+    },
+    primaryIndex: { partitionKey: "originURL", sortKey: "language" },
+  });
+
   const translationMetadataTable = new Table(
     stack,
     "TranslationMetadataTable",
@@ -136,6 +147,7 @@ export function ScrapingStack({ stack }: StackContext) {
             scrapsTable,
             processingTranslationTable,
             translationMetadataTable,
+            failingTranslationTable,
           ],
           timeout: "30 seconds",
         },
@@ -206,7 +218,7 @@ export function ScrapingStack({ stack }: StackContext) {
               lambdaFunction: new Function(stack, "TranslationHandlerFail", {
                 handler:
                   "packages/functions/src/scrapingStack.translationHandlerFail",
-                bind: [processingTranslationTable],
+                bind: [processingTranslationTable, failingTranslationTable,],
               }),
             }).addRetry({
               interval: Duration.seconds(3),

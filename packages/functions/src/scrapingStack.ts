@@ -76,7 +76,7 @@ export const sitemapHandler = EventHandler(
     const { url, destinations } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
     // TODO: Remove slice
-    await UrlUtils.createEventsForUrls(urls.slice(0, 30), destinations);
+    await UrlUtils.createEventsForUrls(urls.slice(5, 10), destinations);
   }
 );
 
@@ -166,6 +166,11 @@ export const translationMetadataQueueConsumer = async (evt: SQSEvent) => {
     console.error(
       `No scrap found for ${translationMetadata?.originURL} in ${translationMetadata?.language}`
     );
+    core.DB.FailingTranslation.put({
+      originURL: translationMetadata.originURL,
+      language: translationMetadata.language,
+      reason: `No scrap found for ${translationMetadata?.originURL} in ${translationMetadata?.language}`,
+    });
     return;
   }
 
@@ -341,20 +346,26 @@ export const translationHandler = async (evt: any) => {
   }
 };
 
-export const translationHandlerFail = async () => {
-  const entries =
+export const translationHandlerFail = async (evt: any) => {
+  const processingTranslation =
     await core.DB.ProcessingTranslation.getEntriesWithRetriesAbove(20);
-  const uniqueEntriesIds = new Set(entries.map((e) => e.groupId));
-  await Promise.all(
-    [...uniqueEntriesIds].map((e) =>
-      core.DB.ProcessingTranslation.deleteProcessingTranslationsByGroupId(e)
-    )
+  const uniqueProcessingTranslationIds = new Set(
+    processingTranslation.map((e) => e.groupId)
   );
-  await core.SES.sendEmail({
-    subject: "Article not translated",
-    body: [...uniqueEntriesIds].join("\n"),
-    addresses: ["fs.pessina@gmail.com"],
-  });
+  await Promise.all(
+    [...uniqueProcessingTranslationIds].map(async (e) => {
+      core.DB.ProcessingTranslation.deleteProcessingTranslationsByGroupId(e);
+      const translationMetadata = await core.DB.TranslationMetadata.get(e);
+      if (translationMetadata)
+        core.DB.FailingTranslation.put({
+          originURL: translationMetadata.originURL,
+          language: translationMetadata.language,
+          reason: `Translation fail for ${translationMetadata?.originURL} - ${
+            translationMetadata?.language
+          } - ${evt.toString()}`,
+        });
+    })
+  );
 };
 
 export const translatedArticlesTableConsumer = async (

@@ -47,8 +47,7 @@ export const uploadImage = async (
 
 export const retrieveImageURL = async (imageName: string): Promise<string> => {
   const bucketName = Bucket.ImagesBucket.bucketName;
-  const s3Url = `https://${bucketName}.s3.amazonaws.com/${imageName}`;
-  return s3Url;
+  return `https://${bucketName}.s3.amazonaws.com/${imageName}`;
 };
 
 export const retrieveImageFile = async (imageName: string): Promise<Buffer> => {

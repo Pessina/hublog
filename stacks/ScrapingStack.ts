@@ -218,7 +218,7 @@ export function ScrapingStack({ stack }: StackContext) {
               lambdaFunction: new Function(stack, "TranslationHandlerFail", {
                 handler:
                   "packages/functions/src/scrapingStack.translationHandlerFail",
-                bind: [processingTranslationTable, failingTranslationTable,],
+                bind: [processingTranslationTable, failingTranslationTable],
               }),
             }).addRetry({
               interval: Duration.seconds(3),

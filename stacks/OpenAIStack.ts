@@ -4,6 +4,7 @@ import { DefinitionBody, StateMachine } from "aws-cdk-lib/aws-stepfunctions";
 import { StackContext } from "sst/constructs";
 import { Duration } from "aws-cdk-lib";
 
+
 export function OpenAIStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
 

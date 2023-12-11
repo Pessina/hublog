@@ -76,7 +76,7 @@ export const sitemapHandler = EventHandler(
     const { url, destinations } = evt.properties;
     const urls = await UrlUtils.getSitemapUrlsFromDomain(url);
     // TODO: Remove slice
-    await UrlUtils.createEventsForUrls(urls.slice(5, 10), destinations);
+    await UrlUtils.createEventsForUrls(urls.slice(0, 30), destinations);
   }
 );
 

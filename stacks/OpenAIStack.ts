@@ -4,7 +4,6 @@ import { DefinitionBody, StateMachine } from "aws-cdk-lib/aws-stepfunctions";
 import { StackContext } from "sst/constructs";
 import { Duration } from "aws-cdk-lib";
 
-
 export function OpenAIStack({ stack }: StackContext) {
   const OPEN_AI_KEY = new Config.Secret(stack, "OPEN_AI_KEY");
 
@@ -64,9 +63,9 @@ export function OpenAIStack({ stack }: StackContext) {
     },
   });
 
-  // TODO: Add batch processing endpoint
-  // TODO: Add prompt pipeline endpoint. Eg. User can send 3 prompts that will be chained based on the response of the previous
-  // TODO: Create a third endpoint combining the previous 2
+  // TODO: Implement an endpoint for batch processing
+  // TODO: Develop an endpoint for a prompt pipeline. For example, a user can send 3 prompts that will be processed sequentially, with each prompt's response influencing the next.
+  // TODO: Create a new endpoint that combines the functionalities of the batch processing and prompt pipeline endpoints.
   const api = new Api(stack, "OpenAIStackAPI", {
     routes: {
       "POST /chatgpt": {

@@ -30,11 +30,11 @@
     "@aws-sdk/client-sfn": "^3.454.0",
     "@aws-sdk/client-sqs": "^3.454.0",
     "@aws-sdk/lib-dynamodb": "^3.454.0",
-    "@mozilla/readability": "^0.4.4",
+    "@mozilla/readability": "^0.5.0",
     "aws-sdk": "^2.1502.0",
     "file-type": "^18.7.0",
     "form-data": "^4.0.0",
-    "linkedom": "^0.16.4",
+    "linkedom": "^0.16.5",
     "openai": "^4.20.0",
     "sanitize-html": "^2.11.0"
   }

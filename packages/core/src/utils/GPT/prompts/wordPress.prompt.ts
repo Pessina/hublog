@@ -1,7 +1,7 @@
 import { GPTPrompt } from "../schemas/types";
 
 export const getWordPressClassificationArgs = (
-  rawHTML: string,
+  content: string,
   tags: string[],
   categories: string[]
 ): GPTPrompt => ({
@@ -11,8 +11,8 @@ export const getWordPressClassificationArgs = (
     {
       role: "user",
       content: `
-      Given the HTML content of a WordPress Travel Blog post:
-      - HTML: '''${rawHTML}'''
+      Given the content of a WordPress Travel Blog post:
+      - HTML: '''${content}'''
       - Tags: '''${tags.join(", ")}'''
       - Categories: '''${categories.join(", ")}'''
       

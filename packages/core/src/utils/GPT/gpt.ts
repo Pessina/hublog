@@ -11,6 +11,7 @@ export const callChatCompletions = async (prompt: GPTPrompt) => {
     switch (e?.error?.code) {
       case "context_length_exceeded":
         console.log(e);
+        break;
       case "rate_limit_exceeded":
         console.log(e);
         throw new Error(e);

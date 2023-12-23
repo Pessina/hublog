@@ -320,7 +320,7 @@ export const translationHandler = async (evt: any) => {
       const articleHTML = article.reduce((acc, curr) => acc + curr.content, "");
       const gptRes = await Utils.GPT.callChatCompletions(
         Utils.GPT.contentPrompts.getSEOArgs(
-          articleHTML,
+          ScrapUtils.removeAllTags(articleHTML),
           translationMetadata.language
         )
       );
@@ -414,7 +414,7 @@ export const translatedArticlesTableConsumer = async (
 
             const prompt =
               Utils.GPT.wordPressPrompts.getWordPressClassificationArgs(
-                translatedArticle.html,
+                ScrapUtils.removeAllTags(translatedArticle.html),
                 tags.map((t) => t.name),
                 categories.map((c) => c.name)
               );

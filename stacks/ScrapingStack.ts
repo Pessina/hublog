@@ -211,7 +211,7 @@ export function ScrapingStack({ stack }: StackContext) {
           .addRetry({
             interval: Duration.seconds(5),
             backoffRate: 1.5,
-            maxAttempts: 20,
+            maxAttempts: 10,
           })
           .addCatch(
             new LambdaInvoke(stack, "Catch translation", {

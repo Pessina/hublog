@@ -81,7 +81,7 @@ export const improveReadability = (
 });
 
 export const getSEOArgs = (
-  rawHTML: string,
+  content: string,
   targetLanguage: string
 ): GPTPrompt => ({
   model: "gpt-3.5-turbo-1106",
@@ -90,8 +90,8 @@ export const getSEOArgs = (
     {
       role: "user",
       content: `
-      Given the HTML content of a WordPress Travel Blog post:
-      - HTML: '''${rawHTML}'''
+      Given the content of a WordPress Travel Blog post:
+      - Content: '''${content}'''
       - Target language: '''${targetLanguage}'''
 
       Perform the following tasks for the target language:
